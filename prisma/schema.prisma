@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                   String      @id @default(uuid())
+  email                String      @unique
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+  preferences          Json?
+  riskTolerance        String      @default("balanced") @map("risk_tolerance")
+  onboardingCompleted  Boolean     @default(false) @map("onboarding_completed")
+  
+  watchlists           Watchlist[]
+  portfolios           Portfolio[]
+  alerts               Alert[]
+  
+  @@map("users")
+}
+
+model Stock {
+  symbol       String   @id
+  companyName  String   @map("company_name")
+  sector       String?
+  industry     String?
+  marketCap    BigInt?  @map("market_cap")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  
+  scores       StockScore[]
+  data         StockData[]
+  watchlists   Watchlist[]
+  portfolios   Portfolio[]
+  alerts       Alert[]
+  moatAnalysis AIMoatAnalysis[]
+  
+  @@map("stocks")
+}
+
+model StockScore {
+  id                    String   @id @default(uuid())
+  symbol                String
+  score                 Int
+  businessQualityScore  Int      @map("business_quality_score")
+  timingScore           Int      @map("timing_score")
+  aiMoatScore           Int?     @map("ai_moat_score")
+  financialHealthScore  Int      @map("financial_health_score")
+  growthScore           Int      @map("growth_score")
+  valuationScore        Int      @map("valuation_score")
+  technicalScore        Int      @map("technical_score")
+  explanation           String?  @db.Text
+  recommendation        String
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  
+  stock                 Stock    @relation(fields: [symbol], references: [symbol])
+  
+  @@index([symbol])
+  @@index([score])
+  @@index([createdAt])
+  @@map("stock_scores")
+}
+
+model StockData {
+  id                 String   @id @default(uuid())
+  symbol             String
+  price              Float
+  priceChange        Float    @map("price_change")
+  priceChangePercent Float    @map("price_change_percent")
+  volume             BigInt
+  marketCap          BigInt?  @map("market_cap")
+  peRatio            Float?   @map("pe_ratio")
+  eps                Float?
+  dividendYield      Float?   @map("dividend_yield")
+  week52High         Float?   @map("week_52_high")
+  week52Low          Float?   @map("week_52_low")
+  createdAt          DateTime @default(now()) @map("created_at")
+  
+  stock              Stock    @relation(fields: [symbol], references: [symbol])
+  
+  @@index([symbol])
+  @@index([createdAt])
+  @@map("stock_data")
+}
+
+model Watchlist {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  symbol       String
+  targetPrice  Float?   @map("target_price")
+  alertEnabled Boolean  @default(true) @map("alert_enabled")
+  notes        String?  @db.Text
+  buyTriggers  Json?    @map("buy_triggers")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  
+  user         User     @relation(fields: [userId], references: [id])
+  stock        Stock    @relation(fields: [symbol], references: [symbol])
+  
+  @@unique([userId, symbol])
+  @@index([userId])
+  @@index([symbol])
+  @@map("watchlists")
+}
+
+model Portfolio {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  symbol           String
+  quantity         Float
+  averagePrice     Float    @map("average_price")
+  currentPrice     Float?   @map("current_price")
+  totalValue       Float?   @map("total_value")
+  gainLoss         Float?   @map("gain_loss")
+  gainLossPercent  Float?   @map("gain_loss_percent")
+  purchasedAt      DateTime @default(now()) @map("purchased_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  
+  user             User     @relation(fields: [userId], references: [id])
+  stock            Stock    @relation(fields: [symbol], references: [symbol])
+  
+  @@unique([userId, symbol])
+  @@index([userId])
+  @@index([symbol])
+  @@map("portfolios")
+}
+
+model Alert {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  symbol      String
+  alertType   String    @map("alert_type")
+  condition   Json
+  triggered   Boolean   @default(false)
+  triggeredAt DateTime? @map("triggered_at")
+  message     String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  
+  user        User      @relation(fields: [userId], references: [id])
+  stock       Stock     @relation(fields: [symbol], references: [symbol])
+  
+  @@index([userId])
+  @@index([symbol])
+  @@index([triggered])
+  @@map("alerts")
+}
+
+model AIMoatAnalysis {
+  id                   String   @id @default(uuid())
+  symbol               String
+  moatScore            Int      @map("moat_score")
+  brandLoyaltyScore    Int      @map("brand_loyalty_score")
+  switchingCostsScore  Int      @map("switching_costs_score")
+  networkEffectsScore  Int      @map("network_effects_score")
+  scaleAdvantagesScore Int      @map("scale_advantages_score")
+  analysisText         String   @db.Text @map("analysis_text")
+  strengths            Json?
+  weaknesses           Json?
+  createdAt            DateTime @default(now()) @map("created_at")
+  expiresAt            DateTime @map("expires_at")
+  
+  stock                Stock    @relation(fields: [symbol], references: [symbol])
+  
+  @@index([symbol])
+  @@index([createdAt])
+  @@map("ai_moat_analysis")
+}

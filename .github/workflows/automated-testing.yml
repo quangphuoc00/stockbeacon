@@ -1,0 +1,206 @@
+name: Automated Testing
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run tests every day at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_category:
+        description: 'Test category to run (leave empty for all)'
+        required: false
+        default: ''
+
+env:
+  TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+  TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+  DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+jobs:
+  test:
+    name: Run Automated Tests
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🏗️ Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: 📦 Install dependencies
+        run: |
+          npm ci
+          npx playwright install chromium
+      
+      - name: 🗄️ Setup test database
+        run: |
+          npm run prisma:generate
+          npm run setup:db
+        continue-on-error: true
+      
+      - name: 🚀 Start application
+        run: |
+          npm run build
+          npm run start &
+          sleep 10
+        env:
+          NODE_ENV: production
+      
+      - name: 🧪 Run automated tests
+        run: |
+          if [ "${{ github.event.inputs.test_category }}" != "" ]; then
+            npm run test:auto:headless -- --category "${{ github.event.inputs.test_category }}"
+          else
+            npm run test:auto:headless
+          fi
+      
+      - name: 📊 Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results-${{ matrix.node-version }}
+          path: |
+            test-results/*.html
+            test-results/*.png
+            test-results/*.webm
+      
+      - name: 📈 Generate test report comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Find the latest HTML report
+            const testResultsDir = 'test-results';
+            const files = fs.readdirSync(testResultsDir);
+            const htmlReport = files.find(f => f.startsWith('test-report') && f.endsWith('.html'));
+            
+            if (htmlReport) {
+              const reportPath = path.join(testResultsDir, htmlReport);
+              const reportContent = fs.readFileSync(reportPath, 'utf8');
+              
+              // Extract summary from HTML
+              const passedMatch = reportContent.match(/<h3>(\d+)<\/h3>\s*<p>Passed<\/p>/);
+              const failedMatch = reportContent.match(/<h3>(\d+)<\/h3>\s*<p>Failed<\/p>/);
+              const passRateMatch = reportContent.match(/<h3>([\d.]+)%<\/h3>\s*<p>Pass Rate<\/p>/);
+              
+              const passed = passedMatch ? passedMatch[1] : '0';
+              const failed = failedMatch ? failedMatch[1] : '0';
+              const passRate = passRateMatch ? passRateMatch[1] : '0';
+              
+              const comment = `## 🧪 Automated Test Results
+              
+              | Metric | Value |
+              |--------|-------|
+              | ✅ Passed | ${passed} |
+              | ❌ Failed | ${failed} |
+              | 📊 Pass Rate | ${passRate}% |
+              | 🖥️ Node Version | ${{ matrix.node-version }} |
+              
+              [View Full Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+              
+              ${failed > 0 ? '⚠️ **Some tests failed. Please review the test report for details.**' : '✅ **All tests passed successfully!**'}`;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            }
+      
+      - name: 🔔 Send notification on failure
+        if: failure() && github.event_name == 'schedule'
+        run: |
+          echo "Tests failed during scheduled run. Send notification here."
+          # Add your notification logic (Slack, email, etc.)
+
+  performance:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+      
+      - name: 📦 Install dependencies
+        run: npm ci
+      
+      - name: 🚀 Build application
+        run: npm run build
+      
+      - name: 🎯 Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          urls: |
+            http://localhost:3000
+            http://localhost:3000/dashboard
+            http://localhost:3000/screener
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+      
+      - name: 📊 Check bundle size
+        run: |
+          npx next build
+          npx next-bundle-analyzer
+
+  accessibility:
+    name: Accessibility Testing
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+      
+      - name: 📦 Install dependencies
+        run: |
+          npm ci
+          npx playwright install chromium
+      
+      - name: 🚀 Start application
+        run: |
+          npm run build
+          npm run start &
+          sleep 10
+      
+      - name: ♿ Run accessibility tests
+        run: |
+          npx pa11y http://localhost:3000 --reporter cli --reporter json > a11y-home.json
+          npx pa11y http://localhost:3000/login --reporter cli --reporter json > a11y-login.json
+          npx pa11y http://localhost:3000/register --reporter cli --reporter json > a11y-register.json
+        continue-on-error: true
+      
+      - name: 📊 Upload accessibility results
+        uses: actions/upload-artifact@v3
+        with:
+          name: accessibility-results
+          path: a11y-*.json
