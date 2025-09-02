@@ -24,14 +24,13 @@ export async function GET(request: NextRequest) {
     
     // Ensure proper data structure
     const formattedStocks = topStocks.map(stock => ({
-      symbol: stock.symbol,
+      ...stock,
       name: stock.name || stock.symbol,
       price: stock.price || 0,
       change: stock.change || 0,
       changePercent: stock.changePercent || 0,
       volume: stock.volume || 0,
-      marketCap: stock.marketCap || 0,
-      ...stock
+      marketCap: stock.marketCap || 0
     }))
     
     return NextResponse.json({

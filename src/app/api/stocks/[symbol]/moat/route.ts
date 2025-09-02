@@ -49,12 +49,12 @@ export async function GET(
       sector: quote.sector || 'Unknown',
       industry: quote.industry || 'Unknown',
       businessSummary: `${quote.name} is a ${quote.sector || 'company'} in the ${quote.industry || 'industry'} sector with a market cap of $${(quote.marketCap / 1e9).toFixed(1)}B.`,
-      grossMargins: financials?.grossMargin,
-      operatingMargins: financials?.operatingMargin,
-      profitMargins: financials?.profitMargin,
+      grossMargins: financials?.grossMargin ?? undefined,
+      operatingMargins: financials?.operatingMargin ?? undefined,
+      profitMargins: financials?.profitMargin ?? undefined,
       marketCap: quote.marketCap,
       employees: undefined, // Not available from current data
-      revenueGrowth: financials?.revenueGrowth,
+      revenueGrowth: financials?.revenueGrowth ?? undefined,
       competitorsList: competitiveInfo.competitors,
     };
 

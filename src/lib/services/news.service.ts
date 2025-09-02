@@ -49,24 +49,13 @@ export class NewsService {
         type: item.type || 'STORY',
         thumbnail: item.thumbnail,
         relatedTickers: item.relatedTickers,
-        summary: typeof item.summary === 'string' ? item.summary : undefined,
+        summary: undefined, // Yahoo Finance API doesn't provide summary in news items
       }))
     } catch (error) {
       console.error(`Error fetching news for ${symbol}:`, error)
       
-      // Try alternative method using quoteSummary
-      try {
-        const quoteSummary = await yahooFinance.quoteSummary(symbol, {
-          modules: ['newsData']
-        })
-        
-        // Note: quoteSummary doesn't actually have news, so this is a fallback
-        // We'll return empty array if the search method fails
-        return []
-      } catch (fallbackError) {
-        console.error('Fallback news fetch also failed:', fallbackError)
-        return []
-      }
+      // Return empty array if news fetch fails
+      return []
     }
   }
   
@@ -96,7 +85,7 @@ export class NewsService {
         type: item.type || 'STORY',
         thumbnail: item.thumbnail,
         relatedTickers: item.relatedTickers,
-        summary: typeof item.summary === 'string' ? item.summary : undefined,
+        summary: undefined, // Yahoo Finance API doesn't provide summary in news items
       }))
     } catch (error) {
       console.error('Error fetching market news:', error)

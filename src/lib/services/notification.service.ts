@@ -111,7 +111,7 @@ export class NotificationService {
     currentScore: number
   ): Promise<void> {
     try {
-      const supabase = createClient();
+      const supabase = await createClient();
       
       // Get all watchlist items for this symbol
       const { data: watchlistItems, error } = await supabase
@@ -203,7 +203,7 @@ export class NotificationService {
     triggers: any
   ): Promise<void> {
     try {
-      const supabase = createClient();
+      const supabase = await createClient();
       
       // Get user details
       const { data: userProfile } = await supabase
@@ -291,7 +291,7 @@ export class NotificationService {
     notification: NotificationData
   ): Promise<boolean> {
     try {
-      const supabase = createClient();
+      const supabase = await createClient();
       
       // Get user email
       const { data: userProfile } = await supabase
@@ -348,7 +348,7 @@ export class NotificationService {
     notification: NotificationData
   ): Promise<boolean> {
     try {
-      const supabase = createClient();
+      const supabase = await createClient();
       
       // Store in-app notification in database
       const { error } = await supabase
@@ -391,7 +391,7 @@ export class NotificationService {
         return cached as NotificationPreferences;
       }
       
-      const supabase = createClient();
+      const supabase = await createClient();
       const { data, error } = await supabase
         .from('notification_preferences')
         .select('*')

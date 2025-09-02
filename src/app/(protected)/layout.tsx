@@ -25,8 +25,15 @@ export default async function ProtectedLayout({
   //   .eq('id', user.id)
   //   .single()
 
-  // Mock user for testing
-  const user = { id: 'test-user', email: 'test@example.com' }
+  // Mock user for testing - minimal User type from Supabase
+  const user = {
+    id: 'test-user',
+    email: 'test@example.com',
+    app_metadata: {},
+    user_metadata: {},
+    aud: 'authenticated',
+    created_at: new Date().toISOString()
+  } as any
   const profile = null
 
   return (

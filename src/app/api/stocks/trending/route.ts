@@ -11,6 +11,7 @@ export async function GET() {
     
     // Convert Map to array and ensure proper structure
     const stocks = Array.from(quotes.entries()).map(([symbol, quote]) => ({
+      ...quote,
       symbol,
       name: quote.name || symbol,
       price: quote.price || 0,
@@ -19,8 +20,7 @@ export async function GET() {
       volume: quote.volume || 0,
       marketCap: quote.marketCap || 0,
       dayHigh: quote.dayHigh || 0,
-      dayLow: quote.dayLow || 0,
-      ...quote,
+      dayLow: quote.dayLow || 0
     }))
     
     return NextResponse.json({

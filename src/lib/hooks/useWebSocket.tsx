@@ -67,10 +67,13 @@ export function useWebSocket() {
       setStatus({ connected: true, connecting: false, error: null });
       
       // Authenticate with server
-      socket.emit('authenticate', {
-        userId: user.id,
-        token: user.access_token, // Use actual auth token
-      });
+      if (user) {
+        socket.emit('authenticate', {
+          userId: user.id,
+          // Note: In production, get the actual session token from Supabase
+          token: 'mock-token', // TODO: Get actual session token
+        });
+      }
     });
 
     socket.on('disconnect', () => {

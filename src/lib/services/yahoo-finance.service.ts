@@ -55,7 +55,7 @@ export class YahooFinanceService {
         marketCap: quote.marketCap || 0,
         peRatio: quote.trailingPE || null,
         eps: quote.epsTrailingTwelveMonths || null,
-        dividendYield: quote.dividendYield || null,
+        dividendYield: quote.trailingAnnualDividendYield || null,
         week52High: quote.fiftyTwoWeekHigh || null,
         week52Low: quote.fiftyTwoWeekLow || null,
         dayHigh: quote.regularMarketDayHigh || null,
@@ -63,8 +63,8 @@ export class YahooFinanceService {
         previousClose: quote.regularMarketPreviousClose || null,
         averageDailyVolume3Month: quote.averageDailyVolume3Month || null,
         sharesOutstanding: quote.sharesOutstanding || null,
-        sector: quote.sector || null,
-        industry: quote.industry || null,
+        sector: null, // Available in assetProfile module, not in quote
+        industry: null, // Available in assetProfile module, not in quote
         earningsDate: earningsDate,
         epsGrowth3to5Year: epsGrowth3to5Year,
         updatedAt: new Date(),
@@ -425,12 +425,14 @@ export class YahooFinanceService {
       })
 
       return results.quotes
-        .filter(quote => quote.typeDisp === 'Equity')
+        .filter(quote => 'typeDisp' in quote && quote.typeDisp === 'Equity')
         .map(quote => ({
           symbol: quote.symbol,
-          name: quote.longname || quote.shortname || quote.symbol,
-          exchange: quote.exchange || 'Unknown',
-          type: quote.typeDisp || 'Stock',
+          name: ('longname' in quote ? quote.longname : undefined) || 
+                ('shortname' in quote ? quote.shortname : undefined) || 
+                quote.symbol,
+          exchange: ('exchange' in quote ? quote.exchange : undefined) || 'Unknown',
+          type: ('typeDisp' in quote ? quote.typeDisp : undefined) || 'Stock',
         }))
     } catch (error) {
       console.error('Error searching stocks:', error)
