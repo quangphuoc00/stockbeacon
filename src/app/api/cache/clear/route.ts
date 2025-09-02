@@ -20,19 +20,19 @@ export async function DELETE(request: NextRequest) {
     
     const symbolUpper = symbol.toUpperCase()
     
-    // Clear all cache entries for this symbol
+    // Clear all cache entries for this symbol - using correct prefixes
     const keys = [
-      `stock:quote:${symbolUpper}`,
-      `stock:financials:${symbolUpper}`,
-      `stock:score:${symbolUpper}`,
-      `stock:historical:${symbolUpper}:1d`,
-      `stock:historical:${symbolUpper}:5d`,
-      `stock:historical:${symbolUpper}:1mo`,
-      `stock:historical:${symbolUpper}:3mo`,
-      `stock:historical:${symbolUpper}:6mo`,
-      `stock:historical:${symbolUpper}:1y`,
-      `stock:historical:${symbolUpper}:2y`,
-      `stock:historical:${symbolUpper}:5y`,
+      `quote:${symbolUpper}`,
+      `financials:${symbolUpper}`,
+      `score:${symbolUpper}`,
+      `historical:${symbolUpper}:1d`,
+      `historical:${symbolUpper}:5d`,
+      `historical:${symbolUpper}:1mo`,
+      `historical:${symbolUpper}:3mo`,
+      `historical:${symbolUpper}:6mo`,
+      `historical:${symbolUpper}:1y`,
+      `historical:${symbolUpper}:2y`,
+      `historical:${symbolUpper}:5y`,
     ]
     
     const deletedCount = await Promise.all(

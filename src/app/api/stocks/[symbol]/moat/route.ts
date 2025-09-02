@@ -6,7 +6,7 @@ import { YahooFinanceService } from '@/lib/services/yahoo-finance.service';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { symbol: string } }
+  { params }: { params: Promise<{ symbol: string }> }
 ) {
   try {
     // Temporarily skip authentication for testing
@@ -21,17 +21,18 @@ export async function GET(
     //   );
     // }
 
-    const symbol = params.symbol.toUpperCase();
+    // Await params as required in Next.js 15
+    const resolvedParams = await params;
+    const symbol = resolvedParams.symbol.toUpperCase();
     const forceRefresh = request.nextUrl.searchParams.get('refresh') === 'true';
 
-    // Fetch company data from Yahoo Finance
-    const yahooService = new YahooFinanceService();
-    const [quote, profile] = await Promise.all([
-      yahooService.getQuote(symbol),
-      yahooService.getCompanyProfile(symbol),
+    // Fetch company data from Yahoo Finance (using static methods)
+    const [quote, financials] = await Promise.all([
+      YahooFinanceService.getQuote(symbol),
+      YahooFinanceService.getFinancials(symbol),
     ]);
 
-    if (!quote || !profile) {
+    if (!quote) {
       return NextResponse.json(
         { error: 'Stock not found' },
         { status: 404 }
@@ -44,16 +45,16 @@ export async function GET(
     // Prepare company data for AI analysis
     const companyData = {
       symbol,
-      companyName: quote.name || profile.companyName || symbol,
-      sector: profile.sector || 'Unknown',
-      industry: profile.industry || 'Unknown',
-      businessSummary: profile.longBusinessSummary || profile.businessSummary || '',
-      grossMargins: profile.grossMargins,
-      operatingMargins: profile.operatingMargins,
-      profitMargins: profile.profitMargins,
+      companyName: quote.name || symbol,
+      sector: quote.sector || 'Unknown',
+      industry: quote.industry || 'Unknown',
+      businessSummary: `${quote.name} is a ${quote.sector || 'company'} in the ${quote.industry || 'industry'} sector with a market cap of $${(quote.marketCap / 1e9).toFixed(1)}B.`,
+      grossMargins: financials?.grossMargin,
+      operatingMargins: financials?.operatingMargin,
+      profitMargins: financials?.profitMargin,
       marketCap: quote.marketCap,
-      employees: profile.fullTimeEmployees,
-      revenueGrowth: profile.revenueGrowth,
+      employees: undefined, // Not available from current data
+      revenueGrowth: financials?.revenueGrowth,
       competitorsList: competitiveInfo.competitors,
     };
 

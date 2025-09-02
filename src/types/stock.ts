@@ -27,6 +27,8 @@ export interface StockQuote {
   sharesOutstanding: number | null
   sector: string | null
   industry: string | null
+  earningsDate: Date | null
+  epsGrowth3to5Year: number | null
   updatedAt: Date
 }
 
@@ -69,7 +71,7 @@ export interface StockFinancials {
 }
 
 export interface StockHistorical {
-  date: Date
+  date: Date | string  // Can be Date object or ISO string
   open: number
   high: number
   low: number

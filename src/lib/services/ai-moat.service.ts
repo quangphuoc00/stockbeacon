@@ -108,19 +108,19 @@ export class AIMotAnalysisService {
           'Authorization': `Bearer ${process.env.XAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: process.env.XAI_MODEL || 'grok-3-mini',
+          model: process.env.XAI_MODEL || 'grok-2-1212',
           messages: [
             {
               role: 'system',
-              content: 'You are a financial analyst specializing in competitive moat analysis. You analyze businesses to identify their competitive advantages. Always respond with valid JSON.',
+              content: 'You are a senior investment analyst specializing in competitive moat analysis, trained in the Warren Buffett/Charlie Munger approach. You provide brutally honest, detailed assessments that institutional investors rely on. You never sugarcoat weaknesses, always consider competitive dynamics, and focus on sustainable advantages that can persist for 5-10 years. Your analysis is evidence-based, comparing companies to best-in-class examples. Always respond with valid JSON.',
             },
             {
               role: 'user',
               content: prompt,
             },
           ],
-          temperature: 0.3, // Lower temperature for consistent analysis
-          max_tokens: 1500,
+          temperature: 0.2, // Very low temperature for consistent, analytical responses
+          max_tokens: 2500, // Increased for more detailed analysis
         }),
       });
 
@@ -129,7 +129,10 @@ export class AIMotAnalysisService {
       }
 
       const data = await response.json();
-      const content = data.choices[0].message.content;
+      let content = data.choices[0].message.content;
+      
+      // Clean up the response - remove markdown code blocks if present
+      content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       
       // Parse the JSON response
       const aiAnalysis = JSON.parse(content);
@@ -147,50 +150,66 @@ export class AIMotAnalysisService {
    */
   private static buildAnalysisPrompt(companyData: CompanyData): string {
     return `
-    Analyze the competitive moat for ${companyData.companyName} (${companyData.symbol}).
+    Perform a comprehensive competitive moat analysis for ${companyData.companyName} (${companyData.symbol}).
     
-    Company Information:
+    Company Context:
     - Sector: ${companyData.sector}
     - Industry: ${companyData.industry}
-    - Business: ${companyData.businessSummary}
-    - Gross Margins: ${companyData.grossMargins ? `${(companyData.grossMargins * 100).toFixed(1)}%` : 'N/A'}
-    - Operating Margins: ${companyData.operatingMargins ? `${(companyData.operatingMargins * 100).toFixed(1)}%` : 'N/A'}
     - Market Cap: ${companyData.marketCap ? `$${(companyData.marketCap / 1e9).toFixed(1)}B` : 'N/A'}
-    - Revenue Growth: ${companyData.revenueGrowth ? `${(companyData.revenueGrowth * 100).toFixed(1)}%` : 'N/A'}
+    - Business: ${companyData.businessSummary}
+    - Key Metrics:
+      - Gross Margins: ${companyData.grossMargins ? `${(companyData.grossMargins * 100).toFixed(1)}%` : 'N/A'}
+      - Operating Margins: ${companyData.operatingMargins ? `${(companyData.operatingMargins * 100).toFixed(1)}%` : 'N/A'}
+      - Revenue Growth: ${companyData.revenueGrowth ? `${(companyData.revenueGrowth * 100).toFixed(1)}%` : 'N/A'}
     ${companyData.competitorsList ? `- Main Competitors: ${companyData.competitorsList.join(', ')}` : ''}
     
-    Analyze and score the company's moat across these four dimensions:
+    Analyze the company's competitive position critically and honestly. Consider both current advantages and future vulnerabilities over a 5-10 year horizon.
     
-    1. Brand Loyalty (0-25 points): How strong is customer attachment to the brand? Consider brand recognition, customer satisfaction, repeat purchase rates.
+    Score the company across these FOUR MOAT DIMENSIONS:
     
-    2. Switching Costs (0-25 points): How difficult/expensive is it for customers to switch to competitors? Consider contracts, data lock-in, learning curves, integration costs.
+    1. BRAND LOYALTY & PRICING POWER (0-25 points)
+    Evaluate: Brand recognition strength, customer retention vs industry average, ability to raise prices without losing customers, premium pricing capability.
+    Consider: Does the brand command premium prices? Do customers actively choose it over cheaper alternatives?
     
-    3. Network Effects (0-25 points): Does the product/service become more valuable as more people use it? Consider user networks, platform effects, data advantages.
+    2. SWITCHING COSTS (0-25 points)
+    Analyze: Financial costs of switching, time/effort costs, business disruption, data migration complexity, integration dependencies, psychological barriers.
+    Quantify: How much would it really cost/disrupt a customer to switch to a competitor?
     
-    4. Scale Advantages (0-25 points): Does the company have cost or capability advantages from its size? Consider economies of scale, distribution networks, R&D capacity.
+    3. NETWORK EFFECTS (0-25 points)
+    Examine: Does value increase with more users? Are there two-sided network effects? Can users easily multi-home with competitors?
+    Evidence: Look for user growth correlation with engagement, marketplace dynamics.
     
-    Provide your response as a JSON object with this exact structure:
+    4. ECONOMIES OF SCALE (0-25 points)
+    Evaluate: Fixed cost advantages, purchasing power, distribution efficiency, R&D cost spreading, operating leverage.
+    Proof: Are margins expanding with growth? Do they have cost advantages competitors can't match?
+    
+    CRITICAL ASSESSMENT:
+    - What could destroy this moat in 5 years?
+    - Which competitors pose the biggest threat?
+    - What are the company's biggest vulnerabilities?
+    
+    Provide your response as a JSON object with this structure:
     {
       "brandLoyalty": {
         "score": [0-25],
-        "explanation": "[2-3 sentences explaining the score in simple terms a beginner can understand]"
+        "explanation": "[3-4 sentences with specific evidence. Be critical - explain WHY the score is high or low with concrete examples. Use plain English.]"
       },
       "switchingCosts": {
         "score": [0-25],
-        "explanation": "[2-3 sentences explaining the score in simple terms]"
+        "explanation": "[3-4 sentences quantifying switching barriers or lack thereof. Compare to competitors. Be specific about what makes switching easy or hard.]"
       },
       "networkEffects": {
         "score": [0-25],
-        "explanation": "[2-3 sentences explaining the score in simple terms]"
+        "explanation": "[3-4 sentences on network dynamics. Explain if effects are strengthening or weakening. Compare to platform leaders.]"
       },
       "scaleAdvantages": {
         "score": [0-25],
-        "explanation": "[2-3 sentences explaining the score in simple terms]"
+        "explanation": "[3-4 sentences on scale benefits. Are these advantages sustainable? How do margins compare to smaller competitors?]"
       },
-      "summary": "[3-4 sentences summarizing the overall moat strength and key competitive advantages in beginner-friendly language]"
+      "summary": "[One paragraph (4-6 sentences) providing an honest overall assessment. Start with the moat classification (Strong/Moderate/Weak), explain the key competitive advantages AND vulnerabilities, and assess the moat's durability. Be specific about threats and compare to best-in-class examples. Write for an intelligent investor who wants the truth, not marketing speak.]"
     }
     
-    Be objective and base scores on the actual business characteristics. Avoid jargon and explain in plain English.
+    Be intellectually honest. If the company lacks a moat, say so clearly. Compare to industry leaders. Focus on sustainable advantages, not temporary benefits.
     `;
   }
 

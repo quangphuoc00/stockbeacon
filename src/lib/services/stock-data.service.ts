@@ -37,10 +37,13 @@ export class StockDataService {
       throw new Error(`Unable to fetch data for ${symbol}`)
     }
     
+    // Historical data is optional - use empty array if not available
+    const safeHistorical = historical || []
+    
     // Calculate fresh score if needed
     let score = cachedScore
-    if (!score && historical && historical.length > 0) {
-      score = StockBeaconScoreService.calculateScore(quote, financials, historical as StockHistorical[])
+    if (!score && safeHistorical && safeHistorical.length > 0) {
+      score = StockBeaconScoreService.calculateScore(quote, financials, safeHistorical as StockHistorical[])
       
       // Cache the new score
       if (score) {
@@ -55,15 +58,15 @@ export class StockDataService {
     if (!cachedFinancials && financials) {
       await RedisCacheService.setFinancials(symbol, financials)
     }
-    if (!cachedHistorical && historical && historical.length > 0) {
-      await RedisCacheService.setHistorical(symbol, '3mo', historical)
+    if (!cachedHistorical && safeHistorical && safeHistorical.length > 0) {
+      await RedisCacheService.setHistorical(symbol, '3mo', safeHistorical)
     }
     
     return {
       quote,
       financials,
       score,
-      historical,
+      historical: safeHistorical,
       fromCache: false,
     }
   }

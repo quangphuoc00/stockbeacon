@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+
+# Testing
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__/
+tests/
+playwright-report/
+test-results/
+coverage/
+.nyc_output/
+
+# Development
+*.log
+.env.local
+.env.development
+.env.test
+*.pem
+
+# Scripts and documentation
+scripts/
+docs/
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Test files
+test-*.js
+test-*.sh
+example-*.js
+
+# Database
+*.db
+*.sqlite
+prisma/migrations/dev/
