@@ -3,12 +3,12 @@ import { YahooFinanceService } from '@/lib/services/yahoo-finance.service'
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { symbol: string } }
+  { params }: { params: Promise<{ symbol: string }> }
 ) {
   try {
     const { searchParams } = new URL(req.url)
     const period = searchParams.get('period') as '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '5y' || '3mo'
-    const { symbol } = params
+    const { symbol } = await params
 
     if (!symbol) {
       return NextResponse.json(
