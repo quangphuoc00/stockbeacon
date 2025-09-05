@@ -86,7 +86,7 @@ export function ValuationChart({ valuation, loading, onRecalculate, missingField
   
   // Function to update DCF value locally for instant feedback
   const updateLocalDCFValue = (method: ValuationResult, rates: CustomGrowthRates) => {
-    if (!method.calculationData?.inputs) return
+    if (!method.calculationData || !method.calculationData.inputs) return
     
     const inputs = method.calculationData.inputs
     const currentCashflow = inputs['Operating Cash Flow']?.value || inputs['Free Cash Flow']?.value || inputs['Net Income']?.value || 0
