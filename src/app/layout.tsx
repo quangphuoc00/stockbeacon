@@ -7,7 +7,10 @@ import { Providers } from '@/components/providers'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'StockBeacon - Your Beginner-Friendly Stock Signal Platform',
+  title: {
+    default: 'StockBeacon - Your Beginner-Friendly Stock Signal Platform',
+    template: '%s'
+  },
   description: 'Simplifying stock investing through actionable recommendations, clear scoring, and confidence-building UX',
   keywords: ['stocks', 'investing', 'signals', 'portfolio', 'trading'],
   authors: [{ name: 'StockBeacon' }],
@@ -26,9 +29,9 @@ export const metadata: Metadata = {
     description: 'Your Beginner-Friendly Stock Signal Platform',
   },
   icons: {
-    icon: '/favicon.ico',
-    shortcut: '/favicon-16x16.png',
-    apple: '/apple-touch-icon.png',
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+    apple: '/favicon.svg',
   },
 }
 

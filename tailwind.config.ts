@@ -85,11 +85,35 @@ const config: Config = {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.5' },
         },
+        'spin-reverse': {
+          to: { transform: 'rotate(-360deg)' },
+        },
+        'pulse-subtle': {
+          '0%, 100%': { opacity: '1', transform: 'scale(1)' },
+          '50%': { opacity: '0.8', transform: 'scale(0.95)' },
+        },
+        'fade-in': {
+          from: { opacity: '0', transform: 'translateY(10px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        'bounce-dot': {
+          '0%, 80%, 100%': { transform: 'translateY(0)' },
+          '40%': { transform: 'translateY(-4px)' },
+        },
+        'pulse-slow': {
+          '0%, 100%': { opacity: '0.1', transform: 'scale(1)' },
+          '50%': { opacity: '0.2', transform: 'scale(1.1)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'pulse-glow': 'pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'spin-reverse': 'spin-reverse 3s linear infinite',
+        'pulse-subtle': 'pulse-subtle 2s ease-in-out infinite',
+        'fade-in': 'fade-in 0.6s ease-out forwards',
+        'bounce-dot': 'bounce-dot 1.4s ease-in-out infinite',
+        'pulse-slow': 'pulse-slow 4s ease-in-out infinite',
       },
     },
   },

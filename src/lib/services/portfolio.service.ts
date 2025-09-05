@@ -1,5 +1,5 @@
 import { Database } from '@/types/database'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 type PortfolioRow = Database['public']['Tables']['portfolios']['Row']
 type PortfolioInsert = Database['public']['Tables']['portfolios']['Insert']

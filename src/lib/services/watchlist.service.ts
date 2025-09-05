@@ -1,5 +1,5 @@
 import { Database } from '@/types/database'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 type WatchlistRow = Database['public']['Tables']['watchlists']['Row']
 type WatchlistInsert = Database['public']['Tables']['watchlists']['Insert']

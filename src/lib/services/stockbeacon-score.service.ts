@@ -1,5 +1,6 @@
 import { StockQuote, StockFinancials, StockHistorical, StockScore, TechnicalIndicators } from '@/types/stock'
 import { MoatAnalysis } from './ai-moat.service'
+import { calculateSupportResistance as calculateSR } from '@/lib/utils/support-resistance'
 
 export class StockBeaconScoreService {
   /**
@@ -231,6 +232,7 @@ export class StockBeaconScoreService {
       return {
         sma20: 0,
         sma50: 0,
+        sma150: 0,
         sma200: 0,
         rsi: 50,
         macd: { value: 0, signal: 0, histogram: 0 },
@@ -247,6 +249,7 @@ export class StockBeaconScoreService {
     // Simple Moving Averages
     const sma20 = this.calculateSMA(prices, 20)
     const sma50 = this.calculateSMA(prices, Math.min(50, prices.length))
+    const sma150 = this.calculateSMA(prices, Math.min(150, prices.length))
     const sma200 = this.calculateSMA(prices, Math.min(200, prices.length))
     
     // RSI (Relative Strength Index)
@@ -261,11 +264,24 @@ export class StockBeaconScoreService {
     // Support and Resistance
     const { support, resistance } = this.calculateSupportResistance(historical)
     
-    // Trend determination
+    // Trend determination using longer-term MAs (no neutral)
     const currentPrice = prices[prices.length - 1]
-    let trend: 'bullish' | 'bearish' | 'neutral' = 'neutral'
-    if (currentPrice > sma20 && sma20 > sma50) trend = 'bullish'
-    else if (currentPrice < sma20 && sma20 < sma50) trend = 'bearish'
+    let trend: 'bullish' | 'bearish' | 'neutral' = 'bearish' // Default to bearish if unclear
+    
+    // If we have MA200 data, use the full analysis
+    if (sma200 > 0) {
+      if (currentPrice > sma50 && sma50 > sma200) {
+        trend = 'bullish'
+      } else if (currentPrice < sma50 && sma50 < sma200) {
+        trend = 'bearish'
+      } else {
+        // For mixed signals, determine based on price position relative to MA200
+        trend = currentPrice > sma200 ? 'bullish' : 'bearish'
+      }
+    } else {
+      // If no MA200, use price relative to MA50
+      trend = currentPrice > sma50 ? 'bullish' : 'bearish'
+    }
     
     // Volatility (standard deviation)
     const volatility = this.calculateVolatility(prices)
@@ -273,6 +289,7 @@ export class StockBeaconScoreService {
     return {
       sma20,
       sma50,
+      sma150,
       sma200,
       rsi,
       macd,
@@ -481,15 +498,74 @@ export class StockBeaconScoreService {
   }
 
   private static calculateSupportResistance(historical: StockHistorical[]) {
-    const lows = historical.map(h => h.low).sort((a, b) => a - b)
-    const highs = historical.map(h => h.high).sort((a, b) => b - a)
+    // Use the same algorithm as the chart for consistency
+    const priceData = historical.map(h => ({
+      time: h.date,
+      open: h.open,
+      high: h.high,
+      low: h.low,
+      close: h.close,
+      volume: h.volume
+    }))
     
-    // Simple support: 10th percentile of lows
-    const support = lows[Math.floor(lows.length * 0.1)]
+    // Get all support/resistance levels
+    const levels = calculateSR(priceData)
     
-    // Simple resistance: 90th percentile of highs
-    const resistance = highs[Math.floor(highs.length * 0.1)]
+    // Get current price (last close)
+    const currentPrice = historical[historical.length - 1].close
     
-    return { support, resistance }
+    // Filter to only the strongest levels (strength === 3) like the chart does
+    const strongLevels = levels.filter(level => level.strength === 3)
+    
+    // Find next support (highest price below current) and next resistance (lowest price above current)
+    let nextSupport = 0
+    let nextResistance = currentPrice * 2 // Default to 2x current price if no resistance found
+    
+    for (const level of strongLevels) {
+      if (level.type === 'support' && level.price < currentPrice && level.price > nextSupport) {
+        nextSupport = level.price
+      } else if (level.type === 'resistance' && level.price > currentPrice && level.price < nextResistance) {
+        nextResistance = level.price
+      }
+    }
+    
+    // If no strong support found below current price, find the closest one
+    if (nextSupport === 0) {
+      const allSupports = strongLevels.filter(l => l.type === 'support' && l.price < currentPrice)
+      if (allSupports.length > 0) {
+        // Get the highest support below current price
+        nextSupport = Math.max(...allSupports.map(l => l.price))
+      } else {
+        // Fallback: use recent low minus 5%
+        const recentLow = Math.min(...historical.slice(-20).map(h => h.low))
+        nextSupport = recentLow * 0.95
+      }
+    }
+    
+    // If no strong resistance found above current price, calculate based on recent highs
+    if (nextResistance === currentPrice * 2) {
+      const allResistances = strongLevels.filter(l => l.type === 'resistance' && l.price > currentPrice)
+      if (allResistances.length > 0) {
+        // Get the lowest resistance above current price
+        nextResistance = Math.min(...allResistances.map(l => l.price))
+      } else {
+        // No resistance above - stock may be at all-time high
+        // Use recent high plus 5% or all-time high plus 2%
+        const recentHigh = Math.max(...historical.slice(-20).map(h => h.high))
+        const allTimeHigh = Math.max(...historical.map(h => h.high))
+        
+        if (currentPrice >= allTimeHigh * 0.98) {
+          // Near all-time high, project resistance higher
+          nextResistance = allTimeHigh * 1.05
+        } else {
+          // Use recent high as resistance
+          nextResistance = Math.max(recentHigh * 1.02, currentPrice * 1.05)
+        }
+      }
+    }
+    
+    return { support: nextSupport, resistance: nextResistance }
   }
+
+
 }

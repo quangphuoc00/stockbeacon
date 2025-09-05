@@ -9,32 +9,19 @@ export default async function ProtectedLayout({
 }: {
   children: React.ReactNode
 }) {
-  // Temporarily bypass authentication for testing
-  // TODO: Re-enable authentication after testing
-  // const supabase = await createClient()
-  // const { data: { user } } = await supabase.auth.getUser()
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  // if (!user) {
-  //   redirect('/login')
-  // }
+  if (!user) {
+    redirect('/login')
+  }
 
-  // // Fetch user profile
-  // const { data: profile } = await supabase
-  //   .from('users')
-  //   .select('*')
-  //   .eq('id', user.id)
-  //   .single()
-
-  // Mock user for testing - minimal User type from Supabase
-  const user = {
-    id: 'test-user',
-    email: 'test@example.com',
-    app_metadata: {},
-    user_metadata: {},
-    aud: 'authenticated',
-    created_at: new Date().toISOString()
-  } as any
-  const profile = null
+  // Fetch user profile
+  const { data: profile } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', user.id)
+    .single()
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

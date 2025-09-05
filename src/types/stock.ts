@@ -28,6 +28,7 @@ export interface StockQuote {
   sector: string | null
   industry: string | null
   earningsDate: Date | null
+  isEarningsDateEstimate: boolean | null
   epsGrowth3to5Year: number | null
   updatedAt: Date
 }
@@ -110,6 +111,7 @@ export interface StockScore {
 export interface TechnicalIndicators {
   sma20: number
   sma50: number
+  sma150: number
   sma200: number
   rsi: number
   macd: {

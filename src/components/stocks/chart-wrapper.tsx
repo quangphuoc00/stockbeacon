@@ -1,17 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { TradingViewChart } from './tradingview-chart'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
 import { 
   TrendingUp, 
   TrendingDown, 
   Activity, 
-  BarChart3,
-  LineChart,
-  AreaChart,
-  Loader2
+  Loader2,
+  GitBranch,
+  TrendingUp as TrendingUpIcon
 } from 'lucide-react'
 
 interface ChartWrapperProps {
@@ -21,19 +20,7 @@ interface ChartWrapperProps {
   priceChangePercent?: number
 }
 
-// Map UI period labels to Yahoo Finance API format
-function mapPeriodToYahoo(period: string): '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '5y' {
-  const periodMap: Record<string, '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '5y'> = {
-    '1D': '1d',
-    '5D': '5d',
-    '1M': '1mo',
-    '3M': '3mo',
-    '6M': '6mo',
-    '1Y': '1y',
-    '5Y': '5y'
-  }
-  return periodMap[period] || '3mo'
-}
+
 
 export function ChartWrapper({ 
   symbol, 
@@ -41,25 +28,27 @@ export function ChartWrapper({
   priceChange = 0,
   priceChangePercent = 0 
 }: ChartWrapperProps) {
-  const [selectedPeriod, setSelectedPeriod] = useState('3M')
-  const [chartType, setChartType] = useState<'candlestick' | 'line' | 'area'>('candlestick')
-  const [showVolume, setShowVolume] = useState(true)
+  const [chartType] = useState<'candlestick' | 'line' | 'area'>('candlestick')
+  const [showVolume, setShowVolume] = useState(false)
+  const [showSupportResistance, setShowSupportResistance] = useState(false)
+  const [showMA, setShowMA] = useState(false)
   const [chartData, setChartData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-
-  const periods = ['1D', '5D', '1M', '3M', '6M', '1Y', '5Y']
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const loadingMoreRef = useRef(false)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
 
   useEffect(() => {
-    // Fetch real historical data from API route
+    // Fetch 5 years of historical data to ensure all MAs have sufficient data
     const fetchHistoricalData = async () => {
       setLoading(true)
       
       try {
-        const yahooPeriod = mapPeriodToYahoo(selectedPeriod)
-        console.log(`Fetching ${yahooPeriod} historical data for ${symbol}`)
+        // Default to 5 years of data to ensure enough data points for all MAs
+        console.log(`Fetching 5 years historical data for ${symbol}`)
         
-        // Call our API route instead of the service directly
-        const response = await fetch(`/api/stocks/${symbol}/historical?period=${yahooPeriod}`)
+        // Call our API route with 5y period to get sufficient data for MA200
+        const response = await fetch(`/api/stocks/${symbol}/historical?period=5y`)
         
         if (!response.ok) {
           throw new Error(`Failed to fetch data: ${response.statusText}`)
@@ -70,20 +59,10 @@ export function ChartWrapper({
         if (result.data && result.data.length > 0) {
           // Transform data to the format expected by TradingView chart
           const transformedData = result.data.map((item: any) => {
-            // For intraday data (1D, 5D), use Unix timestamp to preserve time
-            // For daily data (1M+), use date string
-            const isIntraday = selectedPeriod === '1D' || selectedPeriod === '5D'
-            
-            let timeValue
-            if (isIntraday) {
-              // Use Unix timestamp (in seconds) for intraday data
-              timeValue = Math.floor(new Date(item.date).getTime() / 1000)
-            } else {
-              // Use YYYY-MM-DD format for daily data
-              timeValue = item.date 
-                ? new Date(item.date).toISOString().split('T')[0]
-                : new Date().toISOString().split('T')[0]
-            }
+            // Use YYYY-MM-DD format for daily data (1Y default)
+            const timeValue = item.date 
+              ? new Date(item.date).toISOString().split('T')[0]
+              : new Date().toISOString().split('T')[0]
             
             return {
               time: timeValue,
@@ -97,11 +76,7 @@ export function ChartWrapper({
           
           // Sort data by time in ascending order
           transformedData.sort((a: any, b: any) => {
-            if (typeof a.time === 'number' && typeof b.time === 'number') {
-              return a.time - b.time
-            } else {
-              return new Date(a.time).getTime() - new Date(b.time).getTime()
-            }
+            return new Date(a.time).getTime() - new Date(b.time).getTime()
           })
           
           // Remove any duplicates (keep the last one for each timestamp)
@@ -112,6 +87,7 @@ export function ChartWrapper({
           
           console.log(`Received ${uniqueData.length} unique data points for ${symbol} (from ${transformedData.length} total)`)
           setChartData(uniqueData)
+          setIsInitialLoad(true)
         } else {
           console.log(`No historical data available for ${symbol}`)
           setChartData([])
@@ -125,7 +101,80 @@ export function ChartWrapper({
     }
     
     fetchHistoricalData()
-  }, [selectedPeriod, symbol])
+  }, [symbol])
+
+  // Handle visible range changes to load more data
+  const handleVisibleRangeChanged = useCallback(async (from: Date, to: Date) => {
+    // Prevent multiple simultaneous loads
+    if (loadingMoreRef.current || isLoadingMore) return
+    
+    loadingMoreRef.current = true
+    setIsLoadingMore(true)
+    
+    try {
+      // Get the earliest date we currently have
+      const earliestDate = chartData.length > 0 
+        ? new Date(chartData[0].time)
+        : new Date()
+      
+      // Calculate date 2 years before our earliest data
+      const newStartDate = new Date(earliestDate)
+      newStartDate.setFullYear(newStartDate.getFullYear() - 2)
+      
+      console.log(`Loading more historical data from ${newStartDate.toISOString()} to ${earliestDate.toISOString()}`)
+      
+      // Fetch additional historical data
+      const response = await fetch(
+        `/api/stocks/${symbol}/historical?startDate=${newStartDate.toISOString()}&endDate=${earliestDate.toISOString()}&interval=1d`
+      )
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch additional data: ${response.statusText}`)
+      }
+      
+      const result = await response.json()
+      
+      if (result.data && result.data.length > 0) {
+        // Transform the new data
+        const transformedData = result.data.map((item: any) => {
+          const timeValue = item.date 
+            ? new Date(item.date).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0]
+          
+          return {
+            time: timeValue,
+            open: item.open,
+            high: item.high,
+            low: item.low,
+            close: item.close,
+            volume: item.volume
+          }
+        })
+        
+        // Sort new data
+        transformedData.sort((a: any, b: any) => {
+          return new Date(a.time).getTime() - new Date(b.time).getTime()
+        })
+        
+        // Remove duplicates and merge with existing data
+        const existingTimes = new Set(chartData.map(d => d.time))
+        const newUniqueData = transformedData.filter((item: any) => !existingTimes.has(item.time))
+        
+        if (newUniqueData.length > 0) {
+          // Prepend new data to existing data
+          const mergedData = [...newUniqueData, ...chartData]
+          console.log(`Added ${newUniqueData.length} new historical data points`)
+          setIsInitialLoad(false) // This is not an initial load
+          setChartData(mergedData)
+        }
+      }
+    } catch (error) {
+      console.error('Error loading more historical data:', error)
+    } finally {
+      loadingMoreRef.current = false
+      setIsLoadingMore(false)
+    }
+  }, [chartData, symbol, isLoadingMore])
 
   return (
     <div className="w-full space-y-4">
@@ -146,49 +195,6 @@ export function ChartWrapper({
 
         {/* Chart Controls */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Timeframe Selector */}
-          <Tabs value={selectedPeriod} onValueChange={setSelectedPeriod}>
-            <TabsList className="grid grid-cols-7 h-9">
-              {periods.map(period => (
-                <TabsTrigger 
-                  key={period} 
-                  value={period}
-                  className="px-3 text-xs"
-                >
-                  {period}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-
-          {/* Chart Type Selector */}
-          <div className="flex gap-1 border rounded-md p-1">
-            <Button
-              size="sm"
-              variant={chartType === 'line' ? 'secondary' : 'ghost'}
-              className="h-7 px-2"
-              onClick={() => setChartType('line')}
-            >
-              <LineChart className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant={chartType === 'candlestick' ? 'secondary' : 'ghost'}
-              className="h-7 px-2"
-              onClick={() => setChartType('candlestick')}
-            >
-              <BarChart3 className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant={chartType === 'area' ? 'secondary' : 'ghost'}
-              className="h-7 px-2"
-              onClick={() => setChartType('area')}
-            >
-              <AreaChart className="h-4 w-4" />
-            </Button>
-          </div>
-
           {/* Volume Toggle */}
           <Button
             size="sm"
@@ -199,6 +205,28 @@ export function ChartWrapper({
             <Activity className="h-4 w-4 mr-1" />
             Volume
           </Button>
+
+          {/* Support/Resistance Toggle */}
+          <Button
+            size="sm"
+            variant={showSupportResistance ? 'secondary' : 'outline'}
+            className="h-9"
+            onClick={() => setShowSupportResistance(!showSupportResistance)}
+          >
+            <GitBranch className="h-4 w-4 mr-1" />
+            Support/Resistance Levels
+          </Button>
+
+          {/* MA Lines Toggle */}
+          <Button
+            size="sm"
+            variant={showMA ? 'secondary' : 'outline'}
+            className="h-9"
+            onClick={() => setShowMA(!showMA)}
+          >
+            <TrendingUpIcon className="h-4 w-4 mr-1" />
+            MA Lines
+          </Button>
         </div>
       </div>
 
@@ -208,13 +236,25 @@ export function ChartWrapper({
           <Loader2 className="h-8 w-8 animate-spin" />
         </div>
       ) : (
-        <TradingViewChart
-          symbol={symbol}
-          data={chartData}
-          chartType={chartType}
-          showVolume={showVolume}
-          height={500}
-        />
+        <div className="relative">
+          {isLoadingMore && (
+            <div className="absolute top-2 left-2 z-10 flex items-center gap-2 bg-background/90 backdrop-blur px-3 py-1.5 rounded-md border">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm text-muted-foreground">Loading more data...</span>
+            </div>
+          )}
+          <TradingViewChart
+            symbol={symbol}
+            data={chartData}
+            chartType="candlestick"
+            showVolume={showVolume}
+            showSupportResistance={showSupportResistance}
+            showMA={showMA}
+            height={600}
+            onVisibleRangeChanged={handleVisibleRangeChanged}
+            initialZoom={isInitialLoad}
+          />
+        </div>
       )}
     </div>
   )

@@ -7,7 +7,10 @@ export async function GET(
 ) {
   try {
     const { searchParams } = new URL(req.url)
-    const period = searchParams.get('period') as '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '5y' || '3mo'
+    const period = searchParams.get('period') as '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '5y' || '1y'
+    const startDate = searchParams.get('startDate')
+    const endDate = searchParams.get('endDate')
+    const interval = searchParams.get('interval') as '1m' | '5m' | '15m' | '30m' | '1h' | '1d' || '1d'
     const { symbol } = await params
 
     if (!symbol) {
@@ -17,10 +20,22 @@ export async function GET(
       )
     }
 
-    console.log(`[API] Fetching ${period} historical data for ${symbol}`)
+    let historicalData: any[]
     
-    // Fetch historical data using the service
-    const historicalData = await YahooFinanceService.getHistoricalData(symbol.toUpperCase(), period)
+    // Check if we have date range parameters
+    if (startDate && endDate) {
+      console.log(`[API] Fetching historical data for ${symbol} from ${startDate} to ${endDate}`)
+      historicalData = await YahooFinanceService.getHistoricalDataByDateRange(
+        symbol.toUpperCase(),
+        new Date(startDate),
+        new Date(endDate),
+        interval
+      )
+    } else {
+      console.log(`[API] Fetching ${period} historical data for ${symbol}`)
+      // Fetch historical data using the service with period
+      historicalData = await YahooFinanceService.getHistoricalData(symbol.toUpperCase(), period)
+    }
     
     if (!historicalData || historicalData.length === 0) {
       console.log(`[API] No historical data found for ${symbol}`)

@@ -1,4 +1,20 @@
+// Ensure URLSearchParams is available in Node.js environment
+import { URLSearchParams as NodeURLSearchParams } from 'url'
+
+// Apply polyfill if needed
+if (typeof globalThis.URLSearchParams === 'undefined') {
+  (globalThis as any).URLSearchParams = NodeURLSearchParams
+}
+
 import yahooFinance from 'yahoo-finance2'
+
+// Suppress the redirect warning since it's not causing issues
+// The library expects a redirect to guce.yahoo.com but the request still succeeds
+yahooFinance.setGlobalConfig({
+  validation: {
+    logErrors: false
+  }
+})
 
 export interface NewsItem {
   uuid: string

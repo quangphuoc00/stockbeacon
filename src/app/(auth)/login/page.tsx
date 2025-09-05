@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
+import { Logo } from '@/components/ui/logo'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -73,11 +74,16 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
-          <CardDescription>
-            Enter your email and password to sign in to your account
-          </CardDescription>
+        <CardHeader className="space-y-4">
+          <div className="flex justify-center">
+            <Logo iconSize="lg" href="" />
+          </div>
+          <div className="space-y-1 text-center">
+            <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+            <CardDescription>
+              Enter your email and password to sign in to your account
+            </CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">

@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { AlertCircle } from 'lucide-react'
+import { Logo } from '@/components/ui/logo'
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
@@ -98,11 +99,16 @@ export default function RegisterPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
-          <CardDescription>
-            Enter your details below to create your StockBeacon account
-          </CardDescription>
+        <CardHeader className="space-y-4">
+          <div className="flex justify-center">
+            <Logo iconSize="lg" href="" />
+          </div>
+          <div className="space-y-1 text-center">
+            <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
+            <CardDescription>
+              Enter your details below to create your StockBeacon account
+            </CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleRegister} className="space-y-4">

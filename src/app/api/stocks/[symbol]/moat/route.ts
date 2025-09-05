@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { AIMotAnalysisService } from '@/lib/services/ai-moat.service';
+import { AIMoatAnalysisService } from '@/lib/services/ai-moat.service';
 import { SECEdgarService } from '@/lib/services/sec-edgar.service';
 import { YahooFinanceService } from '@/lib/services/yahoo-finance.service';
 
@@ -59,7 +59,7 @@ export async function GET(
     };
 
     // Get AI moat analysis
-    const moatAnalysis = await AIMotAnalysisService.getMoatAnalysis(
+    const moatAnalysis = await AIMoatAnalysisService.getMoatAnalysis(
       symbol,
       companyData,
       forceRefresh
@@ -88,8 +88,21 @@ export async function GET(
     });
   } catch (error) {
     console.error('Moat analysis error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch moat analysis';
+    
+    // Check if it's an API configuration issue
+    if (errorMessage.includes('AI service not configured')) {
+      return NextResponse.json(
+        { 
+          error: 'AI moat analysis is not available. Please ensure XAI_API_KEY is configured in your environment variables.',
+          fallbackAnalysis: true 
+        },
+        { status: 503 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to fetch moat analysis' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

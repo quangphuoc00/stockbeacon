@@ -51,7 +51,7 @@ interface CompanyData {
   competitorsList?: string[];
 }
 
-export class AIMotAnalysisService {
+export class AIMoatAnalysisService {
   private static XAI_API_URL = 'https://api.x.ai/v1/chat/completions';
   private static CACHE_PREFIX = 'moat_analysis:';
   private static CACHE_TTL = parseInt(process.env.CACHE_TTL_AI_ANALYSIS || '86400'); // 24 hours
@@ -99,6 +99,12 @@ export class AIMotAnalysisService {
     companyData: CompanyData
   ): Promise<MoatAnalysis> {
     try {
+      // Check if XAI API key is configured
+      if (!process.env.XAI_API_KEY) {
+        console.error('XAI_API_KEY is not set in environment variables');
+        throw new Error('AI service not configured');
+      }
+
       const prompt = this.buildAnalysisPrompt(companyData);
       
       const response = await fetch(this.XAI_API_URL, {

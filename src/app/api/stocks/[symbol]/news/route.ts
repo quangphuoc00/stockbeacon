@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { NewsService } from '@/lib/services/news.service'
+import { NewsAnalysisService } from '@/lib/services/news-analysis.service'
 
 export async function GET(
   request: NextRequest,
@@ -7,28 +8,27 @@ export async function GET(
 ) {
   try {
     const { symbol } = await params
-    const symbolUpper = symbol.toUpperCase()
+    const limit = parseInt(request.nextUrl.searchParams.get('limit') || '10')
+    const analyze = request.nextUrl.searchParams.get('analyze') === 'true'
+
+    // Fetch news
+    const news = await NewsService.getStockNews(symbol, limit)
     
-    console.log(`Fetching news for ${symbolUpper}...`)
-    
-    // Get news for the stock
-    const news = await NewsService.getStockNews(symbolUpper, 15)
-    
+    // Optionally analyze the news
+    let analysis = null
+    if (analyze && news && news.length > 0) {
+      analysis = await NewsAnalysisService.analyzeNews(symbol, news)
+    }
+
     return NextResponse.json({
-      success: true,
-      symbol: symbolUpper,
-      count: news.length,
-      news: news,
-      timestamp: new Date().toISOString(),
+      news,
+      analysis,
+      success: true
     })
-  } catch (error: any) {
-    console.error('Error fetching stock news:', error)
-    
+  } catch (error) {
+    console.error('Error fetching news:', error)
     return NextResponse.json(
-      { 
-        error: 'Failed to fetch news',
-        message: error.message || 'Unknown error occurred'
-      },
+      { error: 'Failed to fetch news', success: false },
       { status: 500 }
     )
   }

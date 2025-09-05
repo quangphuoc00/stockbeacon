@@ -1,3 +1,11 @@
+// Ensure URLSearchParams is available in Node.js environment
+import { URLSearchParams as NodeURLSearchParams } from 'url'
+
+// Apply polyfill if needed
+if (typeof globalThis.URLSearchParams === 'undefined') {
+  (globalThis as any).URLSearchParams = NodeURLSearchParams
+}
+
 import yahooFinance from 'yahoo-finance2'
 import { Stock, StockQuote, StockFinancials, StockHistorical } from '@/types/stock'
 
@@ -7,24 +15,81 @@ yahooFinance.setGlobalConfig({
     concurrency: 2,
     timeout: 60000,
   },
+  validation: {
+    logErrors: false // Suppress redirect warnings that don't affect functionality
+  }
 })
 
 export class YahooFinanceService {
+  /**
+   * Fetch company profile information
+   */
+  static async getCompanyProfile(symbol: string) {
+    try {
+      const profileData = await yahooFinance.quoteSummary(symbol, {
+        modules: ['assetProfile', 'summaryProfile']
+      })
+
+      if (!profileData) return null
+
+      const profile: any = profileData.assetProfile || {}
+      const summary: any = profileData.summaryProfile || {}
+
+      return {
+        symbol,
+        // Company description
+        businessSummary: profile.longBusinessSummary || summary.longBusinessSummary || null,
+        
+        // Basic info
+        sector: profile.sector || null,
+        industry: profile.industry || null,
+        website: profile.website || null,
+        
+        // Contact info
+        address: profile.address1 || null,
+        city: profile.city || null,
+        state: profile.state || null,
+        zip: profile.zip || null,
+        country: profile.country || null,
+        phone: profile.phone || null,
+        
+        // Company details
+        fullTimeEmployees: profile.fullTimeEmployees || null,
+        
+        // Key executives
+        companyOfficers: profile.companyOfficers?.map((officer: any) => ({
+          name: officer.name,
+          title: officer.title,
+          age: officer.age || null,
+          yearBorn: officer.yearBorn || null,
+          totalPay: officer.totalPay || null
+        })) || [],
+        
+        updatedAt: new Date()
+      }
+    } catch (error) {
+      console.error(`Error fetching company profile for ${symbol}:`, error)
+      return null
+    }
+  }
+
   /**
    * Fetch real-time stock quote data
    */
   static async getQuote(symbol: string): Promise<StockQuote | null> {
     try {
-      const [quote, calendarEvents, analysis] = await Promise.all([
+      const [quote, calendarEvents, analysis, profile] = await Promise.all([
         yahooFinance.quote(symbol),
         yahooFinance.quoteSummary(symbol, { modules: ['calendarEvents'] }).catch(() => null),
-        yahooFinance.quoteSummary(symbol, { modules: ['earningsTrend'] }).catch(() => null)
+        yahooFinance.quoteSummary(symbol, { modules: ['earningsTrend'] }).catch(() => null),
+        yahooFinance.quoteSummary(symbol, { modules: ['assetProfile'] }).catch(() => null)
       ])
       
       if (!quote) return null
 
       // Extract earnings date
       let earningsDate = null
+      let isEarningsDateEstimate = null
       if (calendarEvents?.calendarEvents?.earnings?.earningsDate?.[0]) {
         const earningsData = calendarEvents.calendarEvents.earnings.earningsDate[0]
         // Yahoo Finance may return this as a Date object or timestamp
@@ -34,6 +99,8 @@ export class YahooFinanceService {
           // It's a Unix timestamp - convert to Date
           earningsDate = new Date(earningsData * 1000)
         }
+        // Earnings dates from Yahoo Finance are typically estimates until confirmed
+        isEarningsDateEstimate = true
       }
 
       // Extract 3-5 year EPS growth rate
@@ -63,9 +130,10 @@ export class YahooFinanceService {
         previousClose: quote.regularMarketPreviousClose || null,
         averageDailyVolume3Month: quote.averageDailyVolume3Month || null,
         sharesOutstanding: quote.sharesOutstanding || null,
-        sector: null, // Available in assetProfile module, not in quote
-        industry: null, // Available in assetProfile module, not in quote
+        sector: profile?.assetProfile?.sector || null,
+        industry: profile?.assetProfile?.industry || null,
         earningsDate: earningsDate,
+        isEarningsDateEstimate: isEarningsDateEstimate,
         epsGrowth3to5Year: epsGrowth3to5Year,
         updatedAt: new Date(),
       }
@@ -483,6 +551,86 @@ export class YahooFinanceService {
     } catch (error) {
       console.error(`Error fetching key stats for ${symbol}:`, error)
       return null
+    }
+  }
+
+  /**
+   * Fetch historical data by date range
+   */
+  static async getHistoricalDataByDateRange(
+    symbol: string,
+    startDate: Date,
+    endDate: Date,
+    interval: '1m' | '5m' | '15m' | '30m' | '1h' | '1d' = '1d'
+  ): Promise<StockHistorical[]> {
+    try {
+      console.log(`Fetching historical data for ${symbol} from ${startDate.toISOString()} to ${endDate.toISOString()}`)
+      
+      // Use chart method with custom date range
+      let result
+      try {
+        result = await yahooFinance.chart(symbol, {
+          period1: startDate,
+          period2: endDate,
+          interval: interval,
+        })
+      } catch (chartError: any) {
+        console.error(`Chart API failed for ${symbol}:`, chartError.message)
+        // Fallback to using historical method if chart fails
+        try {
+          const historicalData = await yahooFinance.historical(symbol, {
+            period1: startDate,
+            period2: endDate,
+            interval: interval === '1d' ? '1d' : '1wk', // Historical method has limited intervals
+          })
+          result = { quotes: historicalData }
+        } catch (historicalError) {
+          console.error(`Historical API also failed for ${symbol}:`, historicalError)
+          throw historicalError
+        }
+      }
+      
+      const historical = Array.isArray(result) ? result : (result.quotes || [])
+      
+      if (!historical || historical.length === 0) {
+        console.log(`No historical data from Yahoo for ${symbol}`)
+        return []
+      }
+      
+      console.log(`Yahoo Finance returned ${historical.length} data points for ${symbol}`)
+      
+      // Process and return the data
+      const processedData = historical.map((data) => {
+        let dateObj: Date
+        if (data.date instanceof Date) {
+          dateObj = data.date
+        } else if (typeof data.date === 'number') {
+          dateObj = new Date(data.date * 1000)
+        } else if (typeof data.date === 'string') {
+          dateObj = new Date(data.date)
+        } else {
+          dateObj = new Date()
+        }
+        
+        return {
+          date: dateObj,
+          open: data.open || 0,
+          high: data.high || 0,
+          low: data.low || 0,
+          close: data.close || 0,
+          volume: data.volume || 0,
+          adjustedClose: data.adjclose || data.close || 0,
+        }
+      })
+      
+      // Sort by date to ensure chronological order
+      processedData.sort((a, b) => a.date.getTime() - b.date.getTime())
+      
+      return processedData
+      
+    } catch (error) {
+      console.error(`Error fetching historical data by date range for ${symbol}:`, error)
+      return []
     }
   }
 }

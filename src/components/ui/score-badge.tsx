@@ -60,7 +60,7 @@ export function ScoreBadge({
     
     Score Components:
     • Business Quality (60%): Financial health, moat strength, growth
-    • Timing (40%): Valuation opportunity, technical indicators
+    • Timing (40%): Intrinsic value opportunity, technical indicators
   `;
 
   return (

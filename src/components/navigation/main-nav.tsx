@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { TrendingUp, Home, Search, Eye, Briefcase } from 'lucide-react'
+import { Home, Search, Eye, Briefcase } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Logo } from '@/components/ui/logo'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
@@ -18,10 +19,7 @@ export function MainNav() {
   return (
     <div className="flex items-center gap-6">
       {/* Logo */}
-      <Link href="/dashboard" className="flex items-center gap-2">
-        <TrendingUp className="h-8 w-8 text-blue-600" />
-        <span className="text-xl font-bold">StockBeacon</span>
-      </Link>
+      <Logo />
 
       {/* Desktop Navigation */}
       <nav className="hidden md:flex items-center gap-6">
