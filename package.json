@@ -88,7 +88,6 @@
     "zustand": "^5.0.7"
   },
   "devDependencies": {
-    "@next/swc-darwin-arm64": "^15.5.2",
     "@playwright/test": "^1.49.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
