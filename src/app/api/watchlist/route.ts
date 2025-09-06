@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
             change: stockData.quote?.change || 0,
             changePercent: stockData.quote?.changePercent || 0,
             score: stockData.score?.score || 0,
+            timingScore: stockData.score?.timingScore || 0,
             name: stockData.quote?.name || item.stock?.company_name || item.symbol,
           }
         } catch (error) {
@@ -43,6 +44,7 @@ export async function GET(request: NextRequest) {
             change: 0,
             changePercent: 0,
             score: 0,
+            timingScore: 0,
             name: item.stock?.company_name || item.symbol,
           }
         }
@@ -97,9 +99,13 @@ export async function POST(request: NextRequest) {
       buyTriggers
     )
     
-    // After successfully adding to watchlist, fetch and update stock info
+    // Enrich the watchlist item with current market data
+    let enrichedItem = { ...watchlistItem }
+    
     try {
       const stockData = await StockDataService.getStockData(symbol.toUpperCase())
+      
+      // Update stock info in database
       if (stockData.quote) {
         await supabase
           .from('stocks')
@@ -110,15 +116,27 @@ export async function POST(request: NextRequest) {
             market_cap: stockData.quote.marketCap,
           })
           .eq('symbol', symbol.toUpperCase())
+          
+        // Add real-time data to response
+        enrichedItem = {
+          ...watchlistItem,
+          currentPrice: stockData.quote.price || 0,
+          change: stockData.quote.change || 0,
+          changePercent: stockData.quote.changePercent || 0,
+          score: stockData.score?.score || 0,
+          timingScore: stockData.score?.timingScore || 0,
+          // Include name separately for frontend
+          name: stockData.quote.name || symbol.toUpperCase(),
+        } as any
       }
     } catch (error) {
-      console.log('Could not update stock info:', error)
-      // Not critical - continue
+      console.log('Could not enrich stock data:', error)
+      // Not critical - return basic data
     }
 
     return NextResponse.json({
       success: true,
-      data: watchlistItem,
+      data: enrichedItem,
     })
   } catch (error: any) {
     console.error('Error adding to watchlist:', error)
@@ -192,7 +210,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { id, ...updates } = body
+    const { id, updates } = body
 
     if (!id) {
       return NextResponse.json(
@@ -201,6 +219,54 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
+    if (!updates || typeof updates !== 'object') {
+      return NextResponse.json(
+        { error: 'Updates object is required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate alert settings if provided
+    if (updates.buy_triggers) {
+      const { minScore, minTimingScore } = updates.buy_triggers
+      
+      // Validate scores are within range
+      if (minScore !== null && minScore !== undefined) {
+        if (typeof minScore !== 'number' || minScore < 0 || minScore > 100) {
+          return NextResponse.json(
+            { error: 'Business Quality Score must be between 0 and 100' },
+            { status: 400 }
+          )
+        }
+      }
+      
+      if (minTimingScore !== null && minTimingScore !== undefined) {
+        if (typeof minTimingScore !== 'number' || minTimingScore < 0 || minTimingScore > 100) {
+          return NextResponse.json(
+            { error: 'Time to Buy Score must be between 0 and 100' },
+            { status: 400 }
+          )
+        }
+      }
+    }
+
+    // Validate target price if provided
+    if (updates.target_price !== null && updates.target_price !== undefined) {
+      if (typeof updates.target_price !== 'number' || updates.target_price < 0) {
+        return NextResponse.json(
+          { error: 'Target price must be a positive number' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // If buy_triggers are being updated, ensure alerts are enabled
+    if (updates.buy_triggers && updates.buy_triggers.enabled !== false) {
+      updates.alert_enabled = true
+    }
+    
+    console.log(`Updating watchlist item ${id} with:`, JSON.stringify(updates, null, 2))
+
     // Update watchlist item
     const updated = await WatchlistService.updateWatchlistItem(
       supabase,
@@ -208,6 +274,8 @@ export async function PATCH(request: NextRequest) {
       id,
       updates
     )
+
+    console.log(`Successfully updated watchlist item ${id}`)
 
     return NextResponse.json({
       success: true,

@@ -41,9 +41,9 @@ export async function generateMetadata({ params }: StockPageProps): Promise<Meta
         card: 'summary',
         title: `${stockSymbol} • ${formatCurrency(price)}`,
         description: `${quote.name || stockSymbol} stock analysis on StockBeacon`,
-      },
       }
-    } catch (error) {
+    }
+  } catch (error) {
     console.error('Error generating metadata:', error)
     return {
       title: `${stockSymbol} - StockBeacon`,

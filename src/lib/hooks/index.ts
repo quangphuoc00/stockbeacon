@@ -6,3 +6,4 @@ export {
   useStockSubscription, 
   usePagePresence 
 } from './useWebSocket';
+export { useWatchlist } from './useWatchlist';

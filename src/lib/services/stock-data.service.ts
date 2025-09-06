@@ -1,6 +1,7 @@
 import { YahooFinanceService } from './yahoo-finance.service'
 import { StockBeaconScoreService } from './stockbeacon-score.service'
 import { RedisCacheService } from './redis-cache.service'
+import { RedisBatchService } from './redis-batch.service'
 import { StockQuote, StockFinancials, StockScore, StockHistorical } from '@/types/stock'
 
 export class StockDataService {
@@ -8,19 +9,16 @@ export class StockDataService {
    * Get comprehensive stock data with caching
    */
   static async getStockData(symbol: string) {
-    // Check cache first
-    const cachedQuote = await RedisCacheService.getQuote(symbol)
-    const cachedFinancials = await RedisCacheService.getFinancials(symbol)
-    const cachedScore = await RedisCacheService.getScore(symbol)
-    const cachedHistorical = await RedisCacheService.getHistorical(symbol, '3mo')
+    // Use batch operation to get all cached data in one call
+    const cachedData = await RedisBatchService.getBatchStockData(symbol)
     
     // If all cached data is fresh, return it
-    if (cachedQuote && cachedFinancials && cachedScore && cachedHistorical) {
+    if (cachedData.quote && cachedData.financials && cachedData.score && cachedData.historical) {
       return {
-        quote: cachedQuote,
-        financials: cachedFinancials,
-        score: cachedScore,
-        historical: cachedHistorical,
+        quote: cachedData.quote,
+        financials: cachedData.financials,
+        score: cachedData.score,
+        historical: cachedData.historical,
         fromCache: true,
       }
     }
@@ -28,12 +26,16 @@ export class StockDataService {
     // Fetch fresh data
     
     const [quote, financials, historical] = await Promise.all([
-      cachedQuote || YahooFinanceService.getQuote(symbol),
-      cachedFinancials || YahooFinanceService.getFinancials(symbol),
-      cachedHistorical || YahooFinanceService.getHistoricalData(symbol, '3mo'),
+      cachedData.quote || YahooFinanceService.getQuote(symbol),
+      cachedData.financials || YahooFinanceService.getFinancials(symbol),
+      cachedData.historical || YahooFinanceService.getHistoricalData(symbol, '3mo'),
     ])
     
     if (!quote || !financials) {
+      // Check if it's a known invalid symbol
+      if (symbol === 'APPL') {
+        console.warn(`Invalid symbol ${symbol} - did you mean AAPL?`)
+      }
       throw new Error(`Unable to fetch data for ${symbol}`)
     }
     
@@ -41,25 +43,35 @@ export class StockDataService {
     const safeHistorical = historical || []
     
     // Calculate fresh score if needed
-    let score = cachedScore
+    let score = cachedData.score
     if (!score && safeHistorical && safeHistorical.length > 0) {
       score = StockBeaconScoreService.calculateScore(quote, financials, safeHistorical as StockHistorical[])
-      
-      // Cache the new score
-      if (score) {
-        await RedisCacheService.setScore(symbol, score)
-      }
     }
     
-    // Cache fresh data
-    if (!cachedQuote && quote) {
-      await RedisCacheService.setQuote(symbol, quote)
+    // Use batch operation to cache all fresh data at once
+    const dataToCache: any = {}
+    const ttls: any = {}
+    
+    if (!cachedData.quote && quote) {
+      dataToCache.quote = quote
+      ttls.quote = 300 // 5 minutes
     }
-    if (!cachedFinancials && financials) {
-      await RedisCacheService.setFinancials(symbol, financials)
+    if (!cachedData.financials && financials) {
+      dataToCache.financials = financials
+      ttls.financials = 3600 // 1 hour
     }
-    if (!cachedHistorical && safeHistorical && safeHistorical.length > 0) {
-      await RedisCacheService.setHistorical(symbol, '3mo', safeHistorical)
+    if (!cachedData.historical && safeHistorical && safeHistorical.length > 0) {
+      dataToCache.historical = safeHistorical
+      ttls.historical = 3600 // 1 hour
+    }
+    if (!cachedData.score && score) {
+      dataToCache.score = score
+      ttls.score = 3600 // 1 hour
+    }
+    
+    // Batch write to Redis
+    if (Object.keys(dataToCache).length > 0) {
+      await RedisBatchService.setBatchStockData(symbol, dataToCache, ttls)
     }
     
     return {

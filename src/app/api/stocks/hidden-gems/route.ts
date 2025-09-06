@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       riskLevel: searchParams.get('riskLevel') as 'conservative' | 'balanced' | 'growth' | undefined,
     }
     
-    // Get screener results
+    // Get hidden gems results
     const stocks = await StockDataService.getScreenerStocks(criteria)
     
     // Limit to top 10 for now
@@ -29,11 +29,11 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     })
   } catch (error: any) {
-    console.error('Error in stock screener:', error)
+    console.error('Error in hidden gems:', error)
     
     return NextResponse.json(
       { 
-        error: 'Failed to screen stocks',
+        error: 'Failed to find hidden gems',
         message: error.message || 'Unknown error occurred'
       },
       { status: 500 }

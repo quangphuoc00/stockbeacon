@@ -151,8 +151,8 @@ export class YahooFinanceService {
   static async getQuotes(symbols: string[]): Promise<Map<string, StockQuote>> {
     const quotes = new Map<string, StockQuote>()
     
-    // Process in batches to avoid rate limiting
-    const batchSize = 5
+    // Process in larger batches for better performance
+    const batchSize = 10 // Increased from 5
     for (let i = 0; i < symbols.length; i += batchSize) {
       const batch = symbols.slice(i, i + batchSize)
       const promises = batch.map(symbol => this.getQuote(symbol))
@@ -164,9 +164,9 @@ export class YahooFinanceService {
         }
       })
       
-      // Small delay between batches to respect rate limits
+      // Shorter delay for better performance
       if (i + batchSize < symbols.length) {
-        await new Promise(resolve => setTimeout(resolve, 500))
+        await new Promise(resolve => setTimeout(resolve, 200)) // Reduced from 500ms
       }
     }
     

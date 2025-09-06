@@ -8,8 +8,8 @@ import { cn } from '@/lib/utils'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
-  { name: 'Screener', href: '/screener', icon: Search },
-  { name: 'Watchlist', href: '/watchlist', icon: Eye },
+  { name: 'Hidden Gems', href: '/hidden-gems', icon: Search },
+  { name: 'Smart Watchlist', href: '/watchlist', icon: Eye },
   { name: 'Portfolio', href: '/portfolio', icon: Briefcase },
   { name: 'Profile', href: '/profile', icon: UserIcon },
 ]

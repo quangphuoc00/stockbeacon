@@ -68,8 +68,8 @@ export class WatchlistService {
       alert_enabled: true,
     }
 
-    const { data, error } = await supabase
-      .from('watchlists')
+    const { data, error } = await (supabase
+      .from('watchlists') as any)
       .insert(watchlistData)
       .select()
       .single()
@@ -96,8 +96,8 @@ export class WatchlistService {
     updates: WatchlistUpdate
   ): Promise<WatchlistItem> {
 
-    const { data, error } = await supabase
-      .from('watchlists')
+    const { data, error } = await (supabase
+      .from('watchlists') as any)
       .update({
         ...updates,
         updated_at: new Date().toISOString(),
@@ -170,8 +170,8 @@ export class WatchlistService {
     enabled: boolean
   ): Promise<void> {
 
-    const { error } = await supabase
-      .from('watchlists')
+    const { error } = await (supabase
+      .from('watchlists') as any)
       .update({ 
         alert_enabled: enabled,
         updated_at: new Date().toISOString(),
@@ -201,8 +201,8 @@ export class WatchlistService {
       // If stock doesn't exist, we need to create it
       // For now, insert with basic info - it will be enriched later
       try {
-        const { error } = await supabase
-          .from('stocks')
+        const { error } = await (supabase
+          .from('stocks') as any)
           .insert({
             symbol: symbol.toUpperCase(),
             company_name: symbol.toUpperCase(), // Will be updated when we fetch real data
@@ -227,20 +227,22 @@ export class WatchlistService {
    */
   static async getWatchlistStats(supabase: SupabaseClient<Database>, userId: string) {
 
-    const { data, error } = await supabase
+    const result = await supabase
       .from('watchlists')
       .select('*')
       .eq('user_id', userId)
 
-    if (error) {
-      console.error('Error fetching watchlist stats:', error)
-      throw error
+    if (result.error) {
+      console.error('Error fetching watchlist stats:', result.error)
+      throw result.error
     }
 
+    const data: WatchlistRow[] = result.data || []
+
     return {
-      total: data?.length || 0,
-      alertsEnabled: data?.filter(item => item.alert_enabled).length || 0,
-      withTargetPrice: data?.filter(item => item.target_price).length || 0,
+      total: data.length,
+      alertsEnabled: data.filter(item => item.alert_enabled).length,
+      withTargetPrice: data.filter(item => item.target_price !== null).length,
     }
   }
 }

@@ -2,6 +2,47 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { PortfolioService } from '@/lib/services/portfolio.service'
 import { StockDataService } from '@/lib/services/stock-data.service'
+import { PortfolioOptimizerService } from '@/lib/services/portfolio-optimizer.service'
+
+// Helper function to calculate portfolio stats from enriched positions
+function calculatePortfolioStats(positions: any[]) {
+  if (!positions || positions.length === 0) {
+    return {
+      totalValue: 0,
+      totalCost: 0,
+      totalGain: 0,
+      totalGainPercent: 0,
+      dayGain: 0,
+      dayGainPercent: 0,
+      positions: 0,
+      winners: 0,
+      losers: 0,
+    }
+  }
+
+  const totalValue = positions.reduce((sum, p) => sum + (p.totalValue || 0), 0)
+  const totalCost = positions.reduce((sum, p) => sum + (p.quantity * p.average_price), 0)
+  const totalGain = totalValue - totalCost
+  const totalGainPercent = totalCost > 0 ? (totalGain / totalCost) * 100 : 0
+
+  const dayGain = positions.reduce((sum, p) => sum + ((p.dayChange || 0) * p.quantity), 0)
+  const dayGainPercent = totalValue > 0 ? (dayGain / totalValue) * 100 : 0
+
+  const winners = positions.filter(p => (p.gainLoss || 0) > 0).length
+  const losers = positions.filter(p => (p.gainLoss || 0) < 0).length
+
+  return {
+    totalValue,
+    totalCost,
+    totalGain,
+    totalGainPercent,
+    dayGain,
+    dayGainPercent,
+    positions: positions.length,
+    winners,
+    losers,
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,47 +61,62 @@ export async function GET(request: NextRequest) {
     // Get user's portfolio
     const positions = await PortfolioService.getUserPortfolio(supabase, user.id)
 
-    // Enrich with current market data
-    const enrichedPositions = await Promise.all(
-      positions.map(async (position) => {
-        try {
-          // Get current stock data
-          const stockData = await StockDataService.getStockData(position.symbol)
-          const currentPrice = stockData.quote?.price || position.current_price || position.average_price
-          
-          // Calculate gains
-          const totalValue = position.quantity * currentPrice
-          const totalCost = position.quantity * position.average_price
-          const gainLoss = totalValue - totalCost
-          const gainLossPercent = (gainLoss / totalCost) * 100
-
-          return {
-            ...position,
-            name: stockData.quote?.name || position.stock?.company_name || position.symbol,
-            currentPrice,
-            currentScore: stockData.score?.score || 0,
-            dayChange: stockData.quote?.change || 0,
-            dayChangePercent: stockData.quote?.changePercent || 0,
-            totalValue,
-            gainLoss,
-            gainLossPercent,
-          }
-        } catch (error) {
-          console.error(`Error enriching portfolio position ${position.symbol}:`, error)
-          return {
-            ...position,
-            name: position.stock?.company_name || position.symbol,
-            currentPrice: position.current_price || position.average_price,
-            currentScore: 0,
-            dayChange: 0,
-            dayChangePercent: 0,
-          }
-        }
-      })
+    // Batch fetch all stock data at once
+    const symbols = positions.map(p => p.symbol)
+    const stockDataResults = await PortfolioOptimizerService.batchFetchStockData(symbols)
+    
+    // Create a map for quick lookup
+    const stockDataMap = new Map(
+      stockDataResults.map(result => [result.originalSymbol, result.data])
     )
 
-    // Calculate portfolio stats
-    const stats = await PortfolioService.getPortfolioStats(supabase, user.id)
+    // Enrich positions with fetched data
+    const enrichedPositions = positions.map(position => {
+      const stockData = stockDataMap.get(position.symbol)
+      
+      if (stockData?.quote) {
+        const currentPrice = stockData.quote.price || position.current_price || position.average_price
+        const totalValue = position.quantity * currentPrice
+        const totalCost = position.quantity * position.average_price
+        const gainLoss = totalValue - totalCost
+        const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) * 100 : 0
+
+        return {
+          ...position,
+          name: stockData.quote.name || position.stock?.company_name || position.symbol,
+          currentPrice,
+          currentScore: stockData.score?.score || 0,
+          dayChange: stockData.quote.change || 0,
+          dayChangePercent: stockData.quote.changePercent || 0,
+          totalValue,
+          gainLoss,
+          gainLossPercent,
+        }
+      } else {
+        // Fallback for failed fetches
+        console.warn(`Using fallback data for ${position.symbol}`)
+        const currentPrice = position.current_price || position.average_price
+        const totalValue = position.quantity * currentPrice
+        const totalCost = position.quantity * position.average_price
+        const gainLoss = totalValue - totalCost
+        const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) * 100 : 0
+        
+        return {
+          ...position,
+          name: position.stock?.company_name || position.symbol,
+          currentPrice,
+          currentScore: 0,
+          dayChange: 0,
+          dayChangePercent: 0,
+          totalValue,
+          gainLoss,
+          gainLossPercent,
+        }
+      }
+    })
+
+    // Calculate portfolio stats based on enriched positions
+    const stats = calculatePortfolioStats(enrichedPositions)
 
     return NextResponse.json({
       success: true,

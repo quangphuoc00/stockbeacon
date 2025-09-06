@@ -23,6 +23,44 @@ export class RedisCacheService {
   private static readonly TRENDING_TTL = 3600 // 1 hour for trending stocks
 
   /**
+   * Generic get method
+   */
+  static async get(key: string): Promise<string | null> {
+    try {
+      return await redis.get(key)
+    } catch (error) {
+      console.error(`Failed to get key ${key}:`, error)
+      return null
+    }
+  }
+
+  /**
+   * Generic set method with TTL
+   */
+  static async set(key: string, value: string, ttl?: number): Promise<void> {
+    try {
+      if (ttl) {
+        await redis.setex(key, ttl, value)
+      } else {
+        await redis.set(key, value)
+      }
+    } catch (error) {
+      console.error(`Failed to set key ${key}:`, error)
+    }
+  }
+
+  /**
+   * Generic delete method
+   */
+  static async delete(key: string): Promise<void> {
+    try {
+      await redis.del(key)
+    } catch (error) {
+      console.error(`Failed to delete key ${key}:`, error)
+    }
+  }
+
+  /**
    * Cache stock quote data
    */
   static async setQuote(symbol: string, quote: StockQuote): Promise<void> {

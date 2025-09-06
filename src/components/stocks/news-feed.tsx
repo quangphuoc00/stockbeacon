@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ExternalLink, Clock, Newspaper, AlertCircle, Loader2, TrendingUp, Zap } from 'lucide-react'
 import { NewsService, NewsItem } from '@/lib/services/news.service'
+import { NewsItemShimmer } from '@/components/ui/shimmer'
 
 interface NewsFeedProps {
   symbol: string
@@ -89,8 +90,10 @@ export function NewsFeed({ symbol }: NewsFeedProps) {
           <CardDescription>Loading news for {symbol}...</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <div className="space-y-4">
+            {[...Array(4)].map((_, i) => (
+              <NewsItemShimmer key={i} />
+            ))}
           </div>
         </CardContent>
       </Card>

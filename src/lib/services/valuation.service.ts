@@ -41,6 +41,21 @@ export interface ComprehensiveValuation {
   calculatedAt: Date
 }
 
+export type ValuationLevel = 
+  | 'highly_undervalued'   // < -20%
+  | 'undervalued'          // -20% to -10%
+  | 'fairly_valued'        // -10% to +10%
+  | 'overvalued'           // +10% to +20%
+  | 'highly_overvalued'    // > +20%
+
+export interface ValuationCategory {
+  level: ValuationLevel
+  discountPremium: number // Percentage from fair value (-25 means 25% undervalued)
+  confidence: 'high' | 'medium' | 'low'
+  fairValue: number
+  currentPrice: number
+}
+
 export class ValuationService {
   private static readonly DISCOUNT_RATE = 0.10 // 10% default discount rate
   private static readonly TERMINAL_GROWTH = 0.03 // 3% perpetual growth
@@ -1063,5 +1078,185 @@ export class ValuationService {
     const costOfDebt = 0.04 // Assumed corporate bond rate
     
     return equityWeight * costOfEquity + debtWeight * costOfDebt * (1 - taxRate)
+  }
+
+  /**
+   * Calculate composite fair value using weighted average of multiple methods
+   */
+  static calculateCompositeFairValue(
+    valuations: ValuationResult[],
+    currentPrice: number
+  ): { fairValue: number; confidence: 'high' | 'medium' | 'low' } {
+    // Filter out methods with missing data
+    const validValuations = valuations.filter(v => !v.missingData)
+    
+    if (validValuations.length === 0) {
+      return { fairValue: currentPrice, confidence: 'low' }
+    }
+    
+    // Weight by confidence level
+    const weights = {
+      high: 3,
+      medium: 2,
+      low: 1
+    }
+    
+    let totalWeight = 0
+    let weightedSum = 0
+    
+    validValuations.forEach(valuation => {
+      const weight = weights[valuation.confidence]
+      totalWeight += weight
+      weightedSum += valuation.value * weight
+    })
+    
+    const fairValue = weightedSum / totalWeight
+    
+    // Determine overall confidence based on number and quality of valuations
+    let confidence: 'high' | 'medium' | 'low'
+    const highConfidenceCount = validValuations.filter(v => v.confidence === 'high').length
+    
+    if (validValuations.length >= 4 && highConfidenceCount >= 2) {
+      confidence = 'high'
+    } else if (validValuations.length >= 2) {
+      confidence = 'medium'
+    } else {
+      confidence = 'low'
+    }
+    
+    return { fairValue, confidence }
+  }
+
+  /**
+   * Calculate sector-relative valuation
+   */
+  static async calculateSectorRelativeValue(
+    symbol: string,
+    currentPE: number | null,
+    sector: string | null
+  ): Promise<{ sectorMedianPE: number; relativeValue: number } | null> {
+    if (!currentPE || !sector) return null
+    
+    try {
+      // In a real implementation, this would fetch sector data
+      // For now, use hardcoded sector medians based on typical values
+      const sectorMedianPEs: Record<string, number> = {
+        'Technology': 25,
+        'Financials': 12,
+        'Healthcare': 20,
+        'Consumer Discretionary': 18,
+        'Consumer Staples': 22,
+        'Energy': 14,
+        'Materials': 16,
+        'Industrials': 18,
+        'Utilities': 17,
+        'Real Estate': 19,
+        'Communication Services': 20
+      }
+      
+      const sectorMedianPE = sectorMedianPEs[sector] || 18 // Default market P/E
+      const relativeValue = (currentPE / sectorMedianPE) * 100 // 100 = fairly valued relative to sector
+      
+      return {
+        sectorMedianPE,
+        relativeValue
+      }
+    } catch (error) {
+      console.error('Error calculating sector relative value:', error)
+      return null
+    }
+  }
+
+  /**
+   * Categorize stock by valuation level
+   */
+  static getValuationCategory(
+    currentPrice: number,
+    fairValue: number,
+    confidence: 'high' | 'medium' | 'low'
+  ): ValuationCategory {
+    const discountPremium = ((currentPrice - fairValue) / fairValue) * 100
+    
+    let level: ValuationLevel
+    if (discountPremium < -20) {
+      level = 'highly_undervalued'
+    } else if (discountPremium < -10) {
+      level = 'undervalued'
+    } else if (discountPremium <= 10) {
+      level = 'fairly_valued'
+    } else if (discountPremium <= 20) {
+      level = 'overvalued'
+    } else {
+      level = 'highly_overvalued'
+    }
+    
+    return {
+      level,
+      discountPremium,
+      confidence,
+      fairValue,
+      currentPrice
+    }
+  }
+
+  /**
+   * Calculate confidence score for valuation
+   */
+  static calculateConfidenceScore(
+    financials: StockFinancials,
+    hasAIMoatAnalysis: boolean = false
+  ): 'high' | 'medium' | 'low' {
+    let score = 0
+    
+    // Check data completeness
+    if (financials.freeCashflow) score += 2
+    if (financials.revenue) score += 1
+    if (financials.netIncome) score += 1
+    if (financials.shareholderEquity) score += 1
+    if (financials.operatingCashflow) score += 2
+    if (financials.returnOnEquity) score += 1
+    if (financials.debtToEquity !== null) score += 1
+    if (hasAIMoatAnalysis) score += 2
+    
+    // Data quality checks
+    if (financials.profitMargin && financials.profitMargin > 0) score += 1
+    if (financials.currentRatio && financials.currentRatio > 1) score += 1
+    
+    if (score >= 10) return 'high'
+    if (score >= 6) return 'medium'
+    return 'low'
+  }
+
+  /**
+   * Get valuation category with all supporting data
+   */
+  static async getStockValuationCategory(
+    symbol: string,
+    quote: StockQuote,
+    financials: StockFinancials,
+    historical: StockHistorical[],
+    hasAIMoatAnalysis: boolean = false
+  ): Promise<ValuationCategory | null> {
+    try {
+      // Calculate comprehensive valuation
+      const comprehensiveValuation = await this.calculateValuation(
+        symbol,
+        quote,
+        financials,
+        {} // customGrowthRates
+      )
+      
+      // Calculate composite fair value
+      const { fairValue, confidence } = this.calculateCompositeFairValue(
+        comprehensiveValuation.valuations,
+        quote.price
+      )
+      
+      // Get valuation category
+      return this.getValuationCategory(quote.price, fairValue, confidence)
+    } catch (error) {
+      console.error('Error calculating valuation category:', error)
+      return null
+    }
   }
 }

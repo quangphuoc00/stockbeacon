@@ -104,20 +104,23 @@ export class NotificationService {
 
   /**
    * Check watchlist triggers and send alerts
+   * Updated to work with new buy_triggers structure
    */
   static async checkWatchlistTriggers(
     symbol: string,
     currentPrice: number,
-    currentScore: number
+    currentScore: number,
+    currentTimingScore?: number
   ): Promise<void> {
     try {
       const supabase = await createClient();
       
-      // Get all watchlist items for this symbol
+      // Get all watchlist items for this symbol with alerts enabled
       const { data: watchlistItems, error } = await supabase
         .from('watchlists')
         .select('*')
-        .eq('symbol', symbol);
+        .eq('symbol', symbol)
+        .eq('alert_enabled', true);
       
       if (error || !watchlistItems) {
         console.error('Error fetching watchlist items:', error);
@@ -126,14 +129,24 @@ export class NotificationService {
       
       // Check each watchlist item for triggered conditions
       for (const item of watchlistItems) {
-        const triggers = await this.evaluateTriggers(item, currentPrice, currentScore);
+        const triggers = await this.evaluateTriggers(
+          item, 
+          currentPrice, 
+          currentScore,
+          currentTimingScore
+        );
         
         if (triggers.allMet) {
-          // Perfect Storm Alert!
-          await this.sendPerfectStormAlert(item.user_id, symbol, triggers);
+          // Check cooldown period
+          const canSendAlert = await this.checkCooldown(item.id, item.user_id);
+          if (canSendAlert) {
+            // Perfect Storm Alert!
+            await this.sendPerfectStormAlert(item.user_id, symbol, triggers, item);
+            await this.updateLastAlertSent(item.id);
+          }
         } else if (triggers.anyMet) {
-          // Partial trigger alert
-          await this.sendPartialTriggerAlert(item.user_id, symbol, triggers);
+          // Partial trigger alert (optional, can be disabled)
+          // await this.sendPartialTriggerAlert(item.user_id, symbol, triggers);
         }
       }
     } catch (error) {
@@ -143,64 +156,64 @@ export class NotificationService {
 
   /**
    * Evaluate watchlist triggers
+   * Updated for new buy_triggers structure
    */
   private static async evaluateTriggers(
     watchlistItem: any,
     currentPrice: number,
-    currentScore: number
+    currentScore: number,
+    currentTimingScore?: number
   ): Promise<any> {
-    const triggers = watchlistItem.triggers || {};
+    const buyTriggers = watchlistItem.buy_triggers || {};
+    const targetPrice = watchlistItem.target_price;
+    
     const results = {
-      priceTarget: false,
-      scoreThreshold: false,
-      technicalSignal: false,
-      fundamentalStrength: false,
+      priceTarget: {
+        configured: !!targetPrice,
+        target: targetPrice,
+        current: currentPrice,
+        met: !targetPrice || currentPrice <= targetPrice
+      },
+      businessQuality: {
+        configured: !!buyTriggers.minScore,
+        target: buyTriggers.minScore,
+        current: currentScore,
+        met: !buyTriggers.minScore || currentScore >= buyTriggers.minScore
+      },
+      timeToBuy: {
+        configured: !!buyTriggers.minTimingScore && currentTimingScore !== undefined,
+        target: buyTriggers.minTimingScore,
+        current: currentTimingScore ? Math.round((currentTimingScore / 40) * 100) : null,
+        met: !buyTriggers.minTimingScore || !currentTimingScore || 
+             Math.round((currentTimingScore / 40) * 100) >= buyTriggers.minTimingScore
+      },
       allMet: false,
       anyMet: false,
+      configuredCount: 0,
+      metCount: 0
     };
     
-    // Check price target
-    if (triggers.priceTarget) {
-      results.priceTarget = currentPrice <= triggers.priceTarget;
-    }
+    // Count configured and met conditions
+    const conditions = [results.priceTarget, results.businessQuality, results.timeToBuy];
+    results.configuredCount = conditions.filter(c => c.configured).length;
+    results.metCount = conditions.filter(c => c.configured && c.met).length;
     
-    // Check score threshold
-    if (triggers.scoreThreshold) {
-      results.scoreThreshold = currentScore >= triggers.scoreThreshold;
-    }
-    
-    // Check technical signals (simplified for now)
-    if (triggers.technicalTrigger) {
-      // This would normally check RSI, MACD, etc.
-      results.technicalSignal = currentScore >= 70; // Placeholder
-    }
-    
-    // Check fundamental strength
-    if (triggers.fundamentalTrigger) {
-      results.fundamentalStrength = currentScore >= 75; // Placeholder
-    }
-    
-    // Determine if all or any triggers are met
-    const triggerValues = [
-      results.priceTarget,
-      results.scoreThreshold,
-      results.technicalSignal,
-      results.fundamentalStrength,
-    ].filter(t => t !== false);
-    
-    results.anyMet = triggerValues.some(t => t);
-    results.allMet = triggerValues.length > 0 && triggerValues.every(t => t);
+    // Determine if all configured conditions are met
+    results.anyMet = results.metCount > 0;
+    results.allMet = results.configuredCount > 0 && results.metCount === results.configuredCount;
     
     return results;
   }
 
   /**
    * Send Perfect Storm Alert
+   * Updated to work with new trigger structure
    */
   private static async sendPerfectStormAlert(
     userId: string,
     symbol: string,
-    triggers: any
+    triggers: any,
+    watchlistItem: any
   ): Promise<void> {
     try {
       const supabase = await createClient();
@@ -230,10 +243,14 @@ export class NotificationService {
         currentPrice: stockData.current_price || 0,
         stockBeaconScore: stockData.beacon_score || 0,
         triggers: {
-          priceTarget: triggers.priceTarget,
-          scoreThreshold: triggers.scoreThreshold,
-          technicalSignal: triggers.technicalSignal,
-          fundamentalStrength: triggers.fundamentalStrength,
+          priceTarget: triggers.priceTarget.met,
+          scoreThreshold: triggers.businessQuality.met,
+          timeToBuy: triggers.timeToBuy.met,
+          details: {
+            price: { current: triggers.priceTarget.current, target: triggers.priceTarget.target },
+            businessQuality: { current: triggers.businessQuality.current, target: triggers.businessQuality.target },
+            timeToBuy: { current: triggers.timeToBuy.current, target: triggers.timeToBuy.target }
+          }
         },
         moatStrength: stockData.moat_strength || 'Moderate',
         recommendation: 'All your buy criteria have been met. This is an excellent entry opportunity.',
@@ -580,6 +597,67 @@ export class NotificationService {
         blocked: 0,
         byType: {},
       };
+    }
+  }
+  
+  /**
+   * Check if we should send alert based on cooldown period
+   */
+  private static async checkCooldown(
+    watchlistId: string,
+    userId: string
+  ): Promise<boolean> {
+    try {
+      const supabase = await createClient();
+      
+      // Get watchlist item to check last alert sent
+      const { data: item, error } = await supabase
+        .from('watchlists')
+        .select('last_alert_sent, alert_cooldown_hours')
+        .eq('id', watchlistId)
+        .single();
+      
+      if (error || !item) {
+        // If we can't check, allow the alert
+        return true;
+      }
+      
+      // If no last alert sent, allow
+      if (!item.last_alert_sent) {
+        return true;
+      }
+      
+      // Check cooldown period (default 24 hours)
+      const cooldownHours = item.alert_cooldown_hours || 24;
+      const lastAlertTime = new Date(item.last_alert_sent).getTime();
+      const currentTime = Date.now();
+      const hoursSinceLastAlert = (currentTime - lastAlertTime) / (1000 * 60 * 60);
+      
+      return hoursSinceLastAlert >= cooldownHours;
+    } catch (error) {
+      console.error('Cooldown check error:', error);
+      // On error, allow alert
+      return true;
+    }
+  }
+  
+  /**
+   * Update last alert sent timestamp
+   */
+  private static async updateLastAlertSent(watchlistId: string): Promise<void> {
+    try {
+      const supabase = await createClient();
+      
+      await supabase
+        .from('watchlists')
+        .update({
+          last_alert_sent: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', watchlistId);
+        
+    } catch (error) {
+      console.error('Update last alert sent error:', error);
     }
   }
 }

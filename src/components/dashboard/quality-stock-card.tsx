@@ -17,7 +17,7 @@ import {
   Clock,
   BarChart3
 } from 'lucide-react'
-import { formatCurrency, formatPercentage, getScoreColor, cn } from '@/lib/utils'
+import { formatCurrency, formatPercentage, formatLargeNumber, getScoreColor, cn } from '@/lib/utils'
 import { useWatchlist } from '@/lib/hooks'
 
 interface StockWithValuation {
@@ -86,10 +86,11 @@ export function QualityStockCard({ stock, view }: QualityStockCardProps) {
     if (inWatchlist) {
       await removeFromWatchlist(stock.symbol)
     } else {
-      await addToWatchlist(stock.symbol, {
-        addedPrice: stock.currentPrice,
-        notes: `Fair value: ${formatCurrency(stock.fairValue)}`
-      })
+      await addToWatchlist(
+        stock.symbol, 
+        stock.fairValue, // Use fair value as target price
+        `Fair value: ${formatCurrency(stock.fairValue)}, Current: ${formatCurrency(stock.currentPrice)}`
+      )
     }
   }
   
@@ -260,7 +261,7 @@ export function QualityStockCard({ stock, view }: QualityStockCardProps) {
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Market Cap</span>
-            <span className="font-medium">{formatCurrency(stock.marketCap, 0)}</span>
+            <span className="font-medium">{formatLargeNumber(stock.marketCap)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Last Updated</span>

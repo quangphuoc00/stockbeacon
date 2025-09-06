@@ -72,14 +72,15 @@ export class PortfolioService {
     await this.ensureStockExists(supabase, symbol)
 
     // Check if position already exists
-    const { data: existing } = await supabase
+    const existingResult = await supabase
       .from('portfolios')
       .select('*')
       .eq('user_id', userId)
       .eq('symbol', symbol)
-      .single()
+      .maybeSingle()
 
-    if (existing) {
+    if (existingResult.data) {
+      const existing: PortfolioRow = existingResult.data
       // Update existing position (average cost calculation)
       const totalCost = (existing.quantity * existing.average_price) + (quantity * price)
       const newQuantity = existing.quantity + quantity
@@ -89,6 +90,24 @@ export class PortfolioService {
         quantity: newQuantity,
         average_price: newAvgPrice,
       })
+    }
+
+    // Get current stock score
+    let purchaseScore = 0
+    try {
+      const scoreResult: any = await supabase
+        .from('stock_scores')
+        .select('score')
+        .eq('symbol', symbol)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (scoreResult?.data) {
+        purchaseScore = scoreResult.data.score || 0
+      }
+    } catch (error) {
+      console.log('Could not fetch stock score:', error)
     }
 
     // Create new position
@@ -102,17 +121,18 @@ export class PortfolioService {
       gain_loss: 0,
       gain_loss_percent: 0,
       purchased_at: purchasedAt?.toISOString() || new Date().toISOString(),
+      // purchase_score: purchaseScore, // TODO: Add after migration
     }
 
-    const { data, error } = await supabase
-      .from('portfolios')
+    const { data, error: insertError } = await (supabase
+      .from('portfolios') as any)
       .insert(portfolioData)
       .select()
       .single()
 
-    if (error) {
-      console.error('Error adding position:', error)
-      throw error
+    if (insertError) {
+      console.error('Error adding position:', insertError)
+      throw insertError
     }
 
     return data
@@ -130,14 +150,15 @@ export class PortfolioService {
 
     // If updating quantity or price, recalculate values
     if (updates.quantity !== undefined || updates.current_price !== undefined) {
-      const { data: current } = await supabase
+      const currentResult = await supabase
         .from('portfolios')
         .select('*')
         .eq('id', positionId)
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
 
-      if (current) {
+      if (currentResult.data) {
+        const current: PortfolioRow = currentResult.data
         const quantity = updates.quantity || current.quantity
         const currentPrice = updates.current_price || current.current_price || current.average_price
         const avgPrice = updates.average_price || current.average_price
@@ -148,8 +169,8 @@ export class PortfolioService {
       }
     }
 
-    const { data, error } = await supabase
-      .from('portfolios')
+    const { data, error } = await (supabase
+      .from('portfolios') as any)
       .update({
         ...updates,
         updated_at: new Date().toISOString(),
@@ -200,17 +221,18 @@ export class PortfolioService {
   ): Promise<PortfolioPosition | null> {
 
     // Get current position
-    const { data: position } = await supabase
+    const positionResult = await supabase
       .from('portfolios')
       .select('*')
       .eq('id', positionId)
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
-    if (!position) {
+    if (!positionResult.data) {
       throw new Error('Position not found')
     }
 
+    const position: PortfolioRow = positionResult.data
     if (quantityToSell >= position.quantity) {
       // Selling all, remove position
       await this.removePosition(supabase, userId, positionId)
@@ -231,12 +253,14 @@ export class PortfolioService {
   static async updatePortfolioPrices(supabase: SupabaseClient<Database>, userId: string): Promise<void> {
 
     // Get all positions
-    const { data: positions } = await supabase
+    const positionsResult = await supabase
       .from('portfolios')
       .select('*')
       .eq('user_id', userId)
 
-    if (!positions || positions.length === 0) return
+    const positions: PortfolioRow[] = positionsResult.data || []
+    
+    if (positions.length === 0) return
 
     // Fetch current prices for all symbols
     const symbols = positions.map(p => p.symbol)
@@ -269,12 +293,14 @@ export class PortfolioService {
    */
   static async getPortfolioStats(supabase: SupabaseClient<Database>, userId: string): Promise<PortfolioStats> {
 
-    const { data: positions } = await supabase
+    const positionsResult = await supabase
       .from('portfolios')
       .select('*')
       .eq('user_id', userId)
 
-    if (!positions || positions.length === 0) {
+    const positions: PortfolioRow[] = positionsResult.data || []
+    
+    if (positions.length === 0) {
       return {
         totalValue: 0,
         totalCost: 0,
@@ -328,8 +354,8 @@ export class PortfolioService {
     if (!existingStock) {
       // If stock doesn't exist, create it with basic info
       try {
-        const { error } = await supabase
-          .from('stocks')
+        const { error } = await (supabase
+          .from('stocks') as any)
           .insert({
             symbol: symbol.toUpperCase(),
             company_name: symbol.toUpperCase(), // Will be updated with real data later

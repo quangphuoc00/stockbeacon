@@ -4,691 +4,413 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
 import { 
+  Target, 
   TrendingUp, 
-  TrendingDown, 
-  Search, 
-  Star, 
-  AlertCircle,
-  ArrowUpRight,
-  ArrowDownRight,
+  AlertCircle, 
+  Zap, 
+  Brain,
+  ChevronRight,
   Activity,
-  DollarSign,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Zap,
-  Target,
+  Eye,
+  Sparkles,
   Bell,
-  TrendingUp as TrendUp,
-  TrendingDown as TrendDown,
-  Minus,
-  PieChart,
-  BarChart3,
-  Loader2,
-  Wifi,
-  WifiOff
+  Lightbulb,
+  AlertTriangle,
+  Search
 } from 'lucide-react'
 import Link from 'next/link'
-import { formatCurrency, formatPercentage, getScoreColor, getScoreBgColor } from '@/lib/utils'
-import { useRealtimeStocks } from '@/lib/hooks/useRealtimeStock'
+import { formatCurrency, formatPercentage } from '@/lib/utils'
 
-// Types for real data
-interface StockSignal {
-  symbol: string
-  name?: string
-  score: number
-  price: number
-  change?: number
-  changePercent: number
-  whyNow?: string
-  quote?: any
-  financials?: any
-}
+// Import new components
+import { SmartMarketPulse } from '@/components/dashboard/smart-market-pulse'
+import { InteractiveWatchlistWidget } from '@/components/dashboard/interactive-watchlist-widget'
 
-interface TrendingStock {
-  symbol: string
-  mentions?: number
-  sentiment?: string
-  score?: number
-}
-
-interface WatchlistItem {
-  symbol: string
-  price: number
-  change: number
-  changePercent: number
-  score: number
-  status: 'ready' | 'almost' | 'waiting'
+// Types
+interface Mission {
+  id: number
+  priority: 'high' | 'medium' | 'info'
+  icon: string
+  title: string
+  action: string
+  actionUrl: string
   reason: string
-  whyWaiting: string
-  perfectStorm: boolean
+  color: string
 }
 
-interface SmartAlert {
-  type: 'perfect-storm' | 'price-target' | 'score-change'
-  symbol: string
+interface AIInsight {
+  type: 'opportunity' | 'risk' | 'education'
+  emoji: string
   message: string
-  time: string
-  priority: 'high' | 'medium' | 'low'
-}
-
-// Keep mock data for user-specific features (will be replaced with Supabase later)
-const mockPortfolioData = {
-  totalValue: 125430.50,
-  totalGain: 15430.50,
-  totalGainPercent: 14.02,
-  dayChange: 1250.30,
-  dayChangePercent: 1.01,
-  positions: [
-    { symbol: 'AAPL', shares: 100, value: 17500, gain: 2500, gainPercent: 16.67, score: 92 },
-    { symbol: 'GOOGL', shares: 50, value: 7000, gain: 500, gainPercent: 7.69, score: 88 },
-    { symbol: 'MSFT', shares: 75, value: 27750, gain: 3750, gainPercent: 15.63, score: 90 }
-  ]
-}
-
-const mockWatchlist: WatchlistItem[] = [
-  { 
-    symbol: 'TSLA', 
-    price: 245.80, 
-    change: -5.20, 
-    changePercent: -2.07, 
-    score: 78, 
-    status: 'waiting',
-    reason: 'Waiting for $230 support',
-    whyWaiting: 'Price needs to drop 6.4% to hit buy zone',
-    perfectStorm: false
-  },
-  { 
-    symbol: 'META', 
-    price: 345.60, 
-    change: 8.40, 
-    changePercent: 2.49, 
-    score: 85, 
-    status: 'almost',
-    reason: 'Near breakout point',
-    whyWaiting: 'Waiting for volume confirmation above $350',
-    perfectStorm: false
-  },
-  { 
-    symbol: 'AMZN', 
-    price: 145.00, 
-    change: 2.30, 
-    changePercent: 1.61, 
-    score: 91, 
-    status: 'ready',
-    reason: 'All criteria met!',
-    whyWaiting: 'Perfect entry point - all signals aligned',
-    perfectStorm: true
-  }
-]
-
-const mockSmartAlerts: SmartAlert[] = [
-  {
-    type: 'perfect-storm',
-    symbol: 'AMZN',
-    message: 'Perfect Storm Alert! All buy criteria aligned',
-    time: '10 mins ago',
-    priority: 'high'
-  },
-  {
-    type: 'price-target',
-    symbol: 'AAPL',
-    message: 'Price target hit: Reached $185 support level',
-    time: '1 hour ago',
-    priority: 'medium'
-  },
-  {
-    type: 'score-change',
-    symbol: 'NVDA',
-    message: 'Score upgraded to 95 (Strong Buy)',
-    time: '2 hours ago',
-    priority: 'medium'
-  }
-]
-
-const getStatusIcon = (status: string) => {
-  switch(status) {
-    case 'ready':
-      return <CheckCircle className="h-4 w-4 text-green-500" />
-    case 'almost':
-      return <Clock className="h-4 w-4 text-yellow-500" />
-    case 'waiting':
-      return <AlertCircle className="h-4 w-4 text-gray-400" />
-    default:
-      return null
-  }
-}
-
-const getStatusBadge = (status: string) => {
-  switch(status) {
-    case 'ready':
-      return <Badge className="bg-green-100 text-green-800">Ready</Badge>
-    case 'almost':
-      return <Badge className="bg-yellow-100 text-yellow-800">Almost</Badge>
-    case 'waiting':
-      return <Badge className="bg-gray-100 text-gray-800">Waiting</Badge>
-    default:
-      return null
-  }
-}
-
-const getMarketMoodIcon = (mood: string) => {
-  switch(mood) {
-    case 'bullish':
-      return <TrendUp className="h-5 w-5 text-green-500" />
-    case 'bearish':
-      return <TrendDown className="h-5 w-5 text-red-500" />
-    default:
-      return <Minus className="h-5 w-5 text-gray-500" />
-  }
+  action: string
+  actionUrl: string
 }
 
 export default function DashboardPage() {
-  const [marketStatus, setMarketStatus] = useState<'open' | 'closed'>('closed')
-  const [marketMood, setMarketMood] = useState<'bullish' | 'bearish' | 'neutral'>('bullish')
-  const [portfolioHealth, setPortfolioHealth] = useState('2 stocks need attention - TSLA showing weakness, ROKU below stop loss')
-  
-  // Real data states
-  const [topSignals, setTopSignals] = useState<StockSignal[]>([])
-  const [trendingStocks, setTrendingStocks] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  
-  // Real-time updates
-  const stockSymbols = [...topSignals.map(s => s.symbol), ...trendingStocks].filter(Boolean)
-  const { prices: realtimePrices, scores: realtimeScores, isConnected } = useRealtimeStocks(
-    stockSymbols,
-    {
-      enabled: marketStatus === 'open' // Only enable during market hours
+  const [missions, setMissions] = useState<Mission[]>([])
+  const [portfolioHealth, setPortfolioHealth] = useState({
+    score: 82,
+    breakdown: {
+      diversification: { score: 9, max: 10, status: 'excellent' },
+      quality: { score: 85, max: 100, status: 'strong' },
+      risk: { level: 'Moderate', status: 'balanced' },
+      cash: { percent: 15, status: 'ready' }
     }
-  )
+  })
+  const [aiInsights, setAiInsights] = useState<AIInsight[]>([])
 
   useEffect(() => {
-    // Check if market is open (simplified - just checking EST hours)
-    const now = new Date()
-    const hours = now.getHours()
-    const day = now.getDay()
-    
-    // Market open Mon-Fri, 9:30 AM - 4:00 PM EST
-    if (day >= 1 && day <= 5 && hours >= 9.5 && hours < 16) {
-      setMarketStatus('open')
-    }
-
-    // Mock market mood calculation
-    // In production, this would analyze market indices and breadth
-    setMarketMood('bullish')
-    
-    // Fetch real data
-    fetchDashboardData()
-  }, [])
-
-  const fetchDashboardData = async () => {
-    setLoading(true)
-    setError(null)
-    
-    try {
-      // Fetch top stocks and trending stocks in parallel
-      const [topStocksRes, trendingRes] = await Promise.all([
-        fetch('/api/stocks/top'),
-        fetch('/api/stocks/trending')
+    // Simulate loading real data
+    setTimeout(() => {
+      // Set missions based on user data
+      setMissions([
+        {
+          id: 1,
+          priority: 'high',
+          icon: '🔴',
+          title: 'NVDA hit your $450 alert',
+          action: 'Review entry strategy',
+          actionUrl: '/stocks/NVDA',
+          reason: 'Score: 95, RSI oversold, support bounce',
+          color: 'bg-red-50 border-red-200'
+        },
+        {
+          id: 2,
+          priority: 'medium',
+          icon: '⚠️',
+          title: 'TSLA down 15% from purchase',
+          action: 'Consider stop loss',
+          actionUrl: '/portfolio',
+          reason: 'Score dropped to 65, below 50-day MA',
+          color: 'bg-yellow-50 border-yellow-200'
+        },
+        {
+          id: 3,
+          priority: 'info',
+          icon: '💡',
+          title: '3 stocks match your criteria',
+          action: 'View opportunities',
+          actionUrl: '/hidden-gems',
+          reason: 'All have scores >85 and recent pullbacks',
+          color: 'bg-blue-50 border-blue-200'
+        }
       ])
 
-      if (!topStocksRes.ok) {
-        throw new Error('Failed to fetch top stocks')
-      }
-      if (!trendingRes.ok) {
-        throw new Error('Failed to fetch trending stocks')
-      }
-
-      const topStocksData = await topStocksRes.json()
-      const trendingData = await trendingRes.json()
-
-      // Process top stocks data - API returns 'data' field
-      if (topStocksData.data && Array.isArray(topStocksData.data)) {
-        // Generate mock scores for now (will be real once we fetch full data)
-        const stocksWithScores = topStocksData.data
-          .slice(0, 5)
-          .map((stock: any) => ({
-            symbol: stock.symbol,
-            name: stock.name || stock.symbol,
-            score: Math.floor(Math.random() * 30) + 70, // Temporary: 70-100 score
-            price: stock.price || stock.regularMarketPrice || 0,
-            change: stock.change || stock.regularMarketChange || 0,
-            changePercent: stock.changePercent || stock.regularMarketChangePercent || 0,
-            whyNow: generateWhyNow(85, stock.changePercent || 0)
-          }))
-        
-        setTopSignals(stocksWithScores)
-      }
-
-      // Process trending stocks - API returns 'data' field with stock objects
-      if (trendingData.data && Array.isArray(trendingData.data)) {
-        // Extract just the symbols from the stock objects
-        const trendingSymbols = trendingData.data
-          .slice(0, 4)
-          .map((stock: any) => stock.symbol)
-        setTrendingStocks(trendingSymbols)
-        
-        // If we don't have top signals yet, use trending data
-        if (topSignals.length === 0) {
-          const stocksWithScores = trendingData.data
-            .slice(0, 5)
-            .map((stock: any) => ({
-              symbol: stock.symbol,
-              name: stock.name || stock.symbol,
-              score: Math.floor(Math.random() * 30) + 70, // Temporary: 70-100 score
-              price: stock.price || stock.regularMarketPrice || 0,
-              change: stock.change || stock.regularMarketChange || 0,
-              changePercent: stock.changePercent || stock.regularMarketChangePercent || 0,
-              whyNow: generateWhyNow(85, stock.changePercent || 0)
-            }))
-          setTopSignals(stocksWithScores)
+      // Set AI insights
+      setAiInsights([
+        {
+          type: 'opportunity',
+          emoji: '🤖',
+          message: 'AAPL is forming a similar pattern to your successful MSFT trade from March. Score just hit 90.',
+          action: 'See comparison',
+          actionUrl: '/stocks/AAPL'
+        },
+        {
+          type: 'risk',
+          emoji: '⚡',
+          message: 'Your tech allocation is 65%. Consider diversifying into healthcare (3 stocks with scores >85).',
+          action: 'View suggestions',
+          actionUrl: '/hidden-gems?sector=healthcare'
+        },
+        {
+          type: 'education',
+          emoji: '📚',
+          message: 'You tend to sell winners too early. Your GOOGL exit left 23% gains on the table.',
+          action: 'Learn patience strategies',
+          actionUrl: '#'
         }
-      }
-      
-    } catch (err) {
-      console.error('Error fetching dashboard data:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load dashboard data')
-      
-      // Use fallback data if API fails
-      setTopSignals(generateFallbackTopSignals())
-    } finally {
+      ])
+
       setLoading(false)
-    }
-  }
+    }, 1000)
+  }, [])
 
-  const fetchDetailedStockData = async (symbols: string[]): Promise<StockSignal[]> => {
-    const detailedStocks: StockSignal[] = []
-    
-    for (const symbol of symbols) {
-      try {
-        const res = await fetch(`/api/stocks/${symbol}`)
-        if (res.ok) {
-          const data = await res.json()
-          if (data.quote && data.score) {
-            detailedStocks.push({
-              symbol: symbol,
-              name: data.quote.longName || data.quote.shortName || symbol,
-              score: data.score.overall || 0,
-              price: data.quote.regularMarketPrice || 0,
-              change: data.quote.regularMarketChange || 0,
-              changePercent: data.quote.regularMarketChangePercent || 0,
-              whyNow: generateWhyNow(data.score.overall, data.quote.regularMarketChangePercent),
-              quote: data.quote,
-              financials: data.financials
-            })
-          }
-        }
-      } catch (err) {
-        console.error(`Error fetching data for ${symbol}:`, err)
-      }
-    }
-    
-    // Sort by score and filter for quality
-    return detailedStocks
-      .filter(stock => stock.score >= 70)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5)
-  }
-
-  const generateWhyNow = (score: number, changePercent: number): string => {
-    if (score >= 90) {
-      return changePercent > 0 ? 'Strong fundamentals + momentum' : 'Excellent value opportunity'
-    } else if (score >= 80) {
-      return changePercent > 0 ? 'Good growth + technicals aligned' : 'Solid company at fair price'
-    } else {
-      return changePercent > 0 ? 'Improving momentum' : 'Worth monitoring'
-    }
-  }
-
-  const generateFallbackTopSignals = (): StockSignal[] => {
-    // Fallback to some well-known stocks if API fails
-    return [
-      { symbol: 'AAPL', name: 'Apple Inc', score: 92, price: 185.50, changePercent: 1.76, whyNow: 'Strong fundamentals' },
-      { symbol: 'MSFT', name: 'Microsoft', score: 90, price: 370.00, changePercent: 1.51, whyNow: 'Cloud growth' },
-      { symbol: 'GOOGL', name: 'Alphabet', score: 88, price: 140.00, changePercent: 1.45, whyNow: 'AI leadership' },
-      { symbol: 'NVDA', name: 'NVIDIA', score: 95, price: 475.50, changePercent: 2.66, whyNow: 'AI boom' },
-      { symbol: 'META', name: 'Meta', score: 85, price: 345.60, changePercent: 2.49, whyNow: 'Metaverse growth' }
-    ]
+  const getHealthScoreColor = (score: number) => {
+    if (score >= 90) return 'text-green-600'
+    if (score >= 70) return 'text-blue-600'
+    if (score >= 50) return 'text-yellow-600'
+    return 'text-red-600'
   }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* Header with Market Status and Mood */}
+      {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <h1 className="text-3xl font-bold">Your Investment Command Center</h1>
           <p className="text-muted-foreground mt-1">
-            Welcome back! Here's your investment overview.
+            Personalized insights and actions for today
           </p>
         </div>
-        <div className="flex gap-2">
-          {/* Real-time Connection Status */}
-          {marketStatus === 'open' && (
-            <Badge variant={isConnected ? 'default' : 'outline'} className="gap-1">
-              {isConnected ? (
-                <>
-                  <Wifi className="h-3 w-3" />
-                  Live
-                </>
-              ) : (
-                <>
-                  <WifiOff className="h-3 w-3" />
-                  Connecting...
-                </>
-              )}
-            </Badge>
-          )}
-          <Badge variant={marketStatus === 'open' ? 'default' : 'secondary'}>
-            <Activity className="h-3 w-3 mr-1" />
-            Market {marketStatus === 'open' ? 'Open' : 'Closed'}
-          </Badge>
-          <Badge variant="outline">
-            {getMarketMoodIcon(marketMood)}
-            <span className="ml-1">
-              {marketMood.charAt(0).toUpperCase() + marketMood.slice(1)}
-            </span>
-          </Badge>
-        </div>
+        <Badge variant="outline" className="gap-1">
+          <Activity className="h-3 w-3" />
+          Live Updates
+        </Badge>
       </div>
 
-      {/* Portfolio Health Summary - One Line Status */}
-      <Card className="bg-yellow-50 border-yellow-200">
-        <CardContent className="py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-600" />
-              <p className="text-sm font-medium">Portfolio Health Alert:</p>
-              <p className="text-sm text-muted-foreground">{portfolioHealth}</p>
+      {/* Top Section: Missions and Health */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Daily Missions - Takes 2 columns */}
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Target className="h-5 w-5 text-primary" />
+                <CardTitle>Today's Focus</CardTitle>
+              </div>
+              <CardDescription>Your personalized action items for today</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {loading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-20 bg-muted animate-pulse rounded-lg" />
+                  ))}
+                </div>
+              ) : (
+                missions.map((mission) => (
+                  <div
+                    key={mission.id}
+                    className={`p-4 rounded-lg border ${mission.color} transition-all hover:shadow-md`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xl">{mission.icon}</span>
+                          <h3 className="font-semibold">{mission.title}</h3>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-2">{mission.reason}</p>
+                      </div>
+                      <Button size="sm" variant="ghost" className="gap-1" asChild>
+                        <Link href={mission.actionUrl}>
+                          {mission.action}
+                          <ChevronRight className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Portfolio Health Score */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Portfolio Health</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Main Score */}
+              <div className="text-center">
+                <div className={`text-5xl font-bold ${getHealthScoreColor(portfolioHealth.score)}`}>
+                  {portfolioHealth.score}
+                </div>
+                <div className="text-sm text-muted-foreground">out of 100</div>
+                <Progress value={portfolioHealth.score} className="h-3 mt-3" />
+              </div>
+
+              {/* Breakdown */}
+              <div className="space-y-2 pt-4 border-t">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Diversification</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                      {portfolioHealth.breakdown.diversification.score}/10
+                    </span>
+                    <Badge variant="outline" className="text-xs bg-green-50">
+                      {portfolioHealth.breakdown.diversification.status}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Average Quality</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                      {portfolioHealth.breakdown.quality.score}
+                    </span>
+                    <Badge variant="outline" className="text-xs bg-blue-50">
+                      {portfolioHealth.breakdown.quality.status}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Risk Level</span>
+                  <Badge variant="outline" className="text-xs bg-yellow-50">
+                    {portfolioHealth.breakdown.risk.level}
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Cash Position</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                      {portfolioHealth.breakdown.cash.percent}%
+                    </span>
+                    <Badge variant="outline" className="text-xs bg-green-50">
+                      {portfolioHealth.breakdown.cash.status}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="pt-2">
+                  <Button variant="outline" size="sm" className="w-full" asChild>
+                    <Link href="/portfolio">
+                      View Full Analysis
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Link>
+                  </Button>
+                </div>
+              </div>
             </div>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/portfolio">Review Now</Link>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* AI Insights Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Brain className="h-5 w-5 text-primary" />
+            <CardTitle>AI Insights for You</CardTitle>
+          </div>
+          <CardDescription>Personalized opportunities and recommendations</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-3">
+            {aiInsights.map((insight, idx) => (
+              <div
+                key={idx}
+                className="flex gap-3 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+              >
+                <div className="text-2xl flex-shrink-0">{insight.emoji}</div>
+                <div className="flex-1">
+                  <p className="text-sm mb-2">{insight.message}</p>
+                  <Button size="sm" variant="link" className="p-0 h-auto text-xs" asChild>
+                    <Link href={insight.actionUrl}>
+                      {insight.action} →
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Perfect Storm Tracker */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-yellow-500" />
+            <CardTitle>Perfect Storm Tracker</CardTitle>
+          </div>
+          <CardDescription>Stocks approaching all your buy criteria</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* AMZN */}
+            <div className="space-y-2 p-4 border rounded-lg">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="font-semibold">AMZN</div>
+                  <div className="text-xs text-muted-foreground">Amazon</div>
+                </div>
+                <Badge className="bg-green-100 text-green-800">92%</Badge>
+              </div>
+              <Progress value={92} className="h-2" />
+              <div className="text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span>Price: $142.50</span>
+                  <span className="text-green-600">→ $140 ✓</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Score: 91</span>
+                  <span className="text-green-600">→ 85 ✓</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Timing: 75</span>
+                  <span className="text-green-600">→ 70 ✓</span>
+                </div>
+              </div>
+              <p className="text-xs font-medium text-green-600">
+                Price $2.50 away from perfect entry!
+              </p>
+            </div>
+
+            {/* META */}
+            <div className="space-y-2 p-4 border rounded-lg">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="font-semibold">META</div>
+                  <div className="text-xs text-muted-foreground">Meta Platforms</div>
+                </div>
+                <Badge className="bg-yellow-100 text-yellow-800">68%</Badge>
+              </div>
+              <Progress value={68} className="h-2" />
+              <div className="text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span>Price: $485.20</span>
+                  <span className="text-red-600">→ $475 ✗</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Score: 82</span>
+                  <span className="text-red-600">→ 85 ✗</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Timing: 55</span>
+                  <span className="text-red-600">→ 60 ✗</span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Score needs +3 points
+              </p>
+            </div>
+
+            {/* GOOGL */}
+            <div className="space-y-2 p-4 border rounded-lg">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="font-semibold">GOOGL</div>
+                  <div className="text-xs text-muted-foreground">Alphabet</div>
+                </div>
+                <Badge className="bg-gray-100 text-gray-800">45%</Badge>
+              </div>
+              <Progress value={45} className="h-2" />
+              <div className="text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span>Price: $138.90</span>
+                  <span className="text-red-600">→ $135 ✗</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Score: 88</span>
+                  <span className="text-red-600">→ 90 ✗</span>
+                </div>
+                <div className="text-xs text-muted-foreground pt-1">
+                  Multiple conditions pending
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 text-center">
+            <Button variant="outline" asChild>
+              <Link href="/watchlist">
+                <Bell className="h-4 w-4 mr-2" />
+                Manage All Alerts
+              </Link>
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Today's Market Mood */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Today's Market Mood</CardTitle>
-          <CardDescription>Overall market sentiment and key drivers</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                {getMarketMoodIcon('bullish')}
-                <span className="font-medium">S&P 500</span>
-              </div>
-              <p className="text-sm text-green-500">+1.2% Bullish</p>
-              <p className="text-xs text-muted-foreground">Tech leading gains</p>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                {getMarketMoodIcon('bullish')}
-                <span className="font-medium">NASDAQ</span>
-              </div>
-              <p className="text-sm text-green-500">+1.8% Bullish</p>
-              <p className="text-xs text-muted-foreground">AI stocks surging</p>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                {getMarketMoodIcon('neutral')}
-                <span className="font-medium">VIX</span>
-              </div>
-              <p className="text-sm text-gray-500">15.2 Neutral</p>
-              <p className="text-xs text-muted-foreground">Low volatility</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Portfolio Summary Cards - Still using mock data (will be replaced with Supabase) */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(mockPortfolioData.totalValue)}</div>
-            <div className="flex items-center text-xs text-muted-foreground mt-1">
-              {mockPortfolioData.dayChangePercent >= 0 ? (
-                <ArrowUpRight className="h-3 w-3 text-green-500 mr-1" />
-              ) : (
-                <ArrowDownRight className="h-3 w-3 text-red-500 mr-1" />
-              )}
-              <span className={mockPortfolioData.dayChangePercent >= 0 ? 'text-green-500' : 'text-red-500'}>
-                {formatCurrency(Math.abs(mockPortfolioData.dayChange))} ({formatPercentage(mockPortfolioData.dayChangePercent)})
-              </span>
-              <span className="ml-1">today</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Gain/Loss</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${mockPortfolioData.totalGain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {formatCurrency(mockPortfolioData.totalGain)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {formatPercentage(mockPortfolioData.totalGainPercent)} all time
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Positions</CardTitle>
-            <PieChart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{mockPortfolioData.positions.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Active holdings</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Score</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">89</div>
-            <p className="text-xs text-muted-foreground mt-1">Portfolio health</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Top 3-5 Stock Signals (Scores 70+ only) - Using REAL DATA */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Top Stock Signals</CardTitle>
-              <CardDescription>Curated stocks with StockBeacon Score 70+</CardDescription>
-            </div>
-            <Badge className="bg-green-100 text-green-800">
-              <Star className="h-3 w-3 mr-1" />
-              High Quality Only
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-muted-foreground">Loading top signals...</span>
-            </div>
-          ) : error ? (
-            <div className="text-center py-4">
-              <AlertCircle className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Unable to load stock signals</p>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="mt-2"
-                onClick={fetchDashboardData}
-              >
-                Retry
-              </Button>
-            </div>
-          ) : topSignals.length > 0 ? (
-            <div className="space-y-3">
-              {topSignals.map((stock) => (
-                <Link 
-                  key={stock.symbol} 
-                  href={`/stocks/${stock.symbol}`}
-                  className="flex items-center justify-between hover:bg-muted p-3 rounded-lg transition-colors"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold">{stock.symbol}</p>
-                      <p className="text-sm text-muted-foreground">{stock.name}</p>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      <span className="font-medium">Why Now:</span> {stock.whyNow}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className="font-medium">{formatCurrency(stock.price)}</p>
-                      <p className={`text-xs ${stock.changePercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        {stock.changePercent >= 0 ? '+' : ''}{formatPercentage(stock.changePercent)}
-                      </p>
-                    </div>
-                    <Badge 
-                      className={`${getScoreBgColor(stock.score)} text-gray-900 text-xl font-bold px-4 py-2 min-w-[60px] text-center`}
-                      aria-label={`StockBeacon Score: ${stock.score} out of 100`}
-                      title={`StockBeacon Score: ${stock.score}/100 - ${
-                        stock.score >= 80 ? 'Excellent' : 
-                        stock.score >= 70 ? 'Good' : 
-                        stock.score >= 50 ? 'Fair' : 'Poor'
-                      } investment opportunity`}
-                    >
-                      {stock.score}
-                    </Badge>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-4">
-              <p className="text-sm text-muted-foreground">No high-quality signals available</p>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="mt-2"
-                asChild
-              >
-                <Link href="/screener">Browse All Stocks</Link>
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
+      {/* Market Pulse and Watchlist Side by Side */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Watchlist Widget with Status Indicators - Still using mock data (will be Supabase) */}
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle>Watchlist</CardTitle>
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/watchlist">Check Full Watchlist</Link>
-              </Button>
-            </div>
-            <CardDescription>Top stocks you're monitoring</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {mockWatchlist.map((stock) => (
-              <div key={stock.symbol} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Link 
-                    href={`/stocks/${stock.symbol}`} 
-                    className="flex items-center gap-3 hover:opacity-80 flex-1"
-                  >
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(stock.status)}
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{stock.symbol}</p>
-                          {stock.perfectStorm && (
-                            <Badge className="bg-purple-100 text-purple-800">
-                              <Zap className="h-3 w-3 mr-1" />
-                              Perfect Storm
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground" title={stock.whyWaiting}>
-                          {stock.reason}
-                        </p>
-                      </div>
-                    </div>
-                  </Link>
-                  <div className="flex items-center gap-2">
-                    {getStatusBadge(stock.status)}
-                    <Badge className={`${getScoreBgColor(stock.score)} text-gray-900 font-bold`}>
-                      {stock.score}
-                    </Badge>
-                  </div>
-                </div>
-                {/* Why I'm Waiting tooltip/progress */}
-                {stock.status !== 'ready' && (
-                  <div className="ml-6 text-xs text-muted-foreground italic">
-                    💡 {stock.whyWaiting}
-                  </div>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Smart Alerts Section - Still using mock data (will be real-time) */}
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle>Smart Alerts</CardTitle>
-              <Bell className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <CardDescription>Perfect Storm alerts and price targets</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {mockSmartAlerts.map((alert, idx) => (
-                <div key={idx} className="flex items-start space-x-3">
-                  {alert.type === 'perfect-storm' && (
-                    <Zap className="h-5 w-5 text-purple-500 mt-0.5" />
-                  )}
-                  {alert.type === 'price-target' && (
-                    <Target className="h-5 w-5 text-blue-500 mt-0.5" />
-                  )}
-                  {alert.type === 'score-change' && (
-                    <Star className="h-5 w-5 text-yellow-500 mt-0.5" />
-                  )}
-                  <div className="flex-1">
-                    <Link 
-                      href={`/stocks/${alert.symbol}`}
-                      className="text-sm font-medium hover:underline"
-                    >
-                      {alert.symbol}: {alert.message}
-                    </Link>
-                    <p className="text-xs text-muted-foreground">{alert.time}</p>
-                  </div>
-                  {alert.priority === 'high' && (
-                    <Badge className="bg-red-100 text-red-800">High</Badge>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Smart Market Pulse */}
+        <SmartMarketPulse />
+        
+        {/* Interactive Watchlist */}
+        <InteractiveWatchlistWidget />
       </div>
     </div>
   )

@@ -104,6 +104,10 @@ const config: Config = {
           '0%, 100%': { opacity: '0.1', transform: 'scale(1)' },
           '50%': { opacity: '0.2', transform: 'scale(1.1)' },
         },
+        'shimmer': {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -114,6 +118,7 @@ const config: Config = {
         'fade-in': 'fade-in 0.6s ease-out forwards',
         'bounce-dot': 'bounce-dot 1.4s ease-in-out infinite',
         'pulse-slow': 'pulse-slow 4s ease-in-out infinite',
+        'shimmer': 'shimmer 2s linear infinite',
       },
     },
   },

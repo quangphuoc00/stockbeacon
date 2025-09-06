@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { YahooFinanceService } from '@/lib/services/yahoo-finance.service'
+import { Redis } from '@upstash/redis'
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+})
 
 export async function GET(
   req: NextRequest,
@@ -18,6 +24,31 @@ export async function GET(
         { error: 'Symbol is required' },
         { status: 400 }
       )
+    }
+
+    // Create cache key based on parameters
+    const cacheKey = startDate && endDate 
+      ? `historical:${symbol}:${startDate}:${endDate}:${interval}`
+      : `historical:${symbol}:${period}`
+    
+    // Cache TTL: 1 hour for intraday, 24 hours for daily data
+    const cacheTTL = ['1m', '5m', '15m', '30m', '1h'].includes(interval) ? 3600 : 86400
+    
+    // Check cache first
+    try {
+      const cachedData = await redis.get(cacheKey)
+      if (cachedData && Array.isArray(cachedData)) {
+        console.log(`[API] Returning cached historical data for ${symbol}`)
+        return NextResponse.json({
+          symbol: symbol.toUpperCase(),
+          period,
+          data: cachedData,
+          count: cachedData.length,
+          cached: true
+        })
+      }
+    } catch (error) {
+      console.error('Cache read error:', error)
     }
 
     let historicalData: any[]
@@ -58,11 +89,20 @@ export async function GET(
       adjustedClose: item.adjustedClose
     }))
 
+    // Cache the transformed data
+    try {
+      await redis.setex(cacheKey, cacheTTL, JSON.stringify(transformedData))
+      console.log(`[API] Cached historical data for ${symbol} with TTL ${cacheTTL}s`)
+    } catch (error) {
+      console.error('Cache write error:', error)
+    }
+
     return NextResponse.json({
       symbol: symbol.toUpperCase(),
       period,
       data: transformedData,
-      count: transformedData.length
+      count: transformedData.length,
+      cached: false
     })
   } catch (error) {
     console.error('[API] Error fetching historical data:', error)

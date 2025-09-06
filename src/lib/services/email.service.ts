@@ -29,10 +29,16 @@ export interface PerfectStormAlertData {
   triggers: {
     priceTarget: boolean;
     scoreThreshold: boolean;
-    technicalSignal: boolean;
-    fundamentalStrength: boolean;
+    technicalSignal?: boolean;
+    fundamentalStrength?: boolean;
+    timeToBuy?: boolean;
+    details?: {
+      price: { current: number; target: number | null };
+      businessQuality: { current: number; target: number | null };
+      timeToBuy: { current: number | null; target: number | null };
+    };
   };
-  moatStrength: 'Strong' | 'Moderate' | 'Weak';
+  moatStrength: 'Strong' | 'Moderate' | 'Weak' | string;
   recommendation: string;
   strengths: string[];
 }
@@ -78,11 +84,23 @@ export class EmailService {
         return false;
       }
 
-      // Render the email template
+      // Render the email template with all required properties
       const emailHtml = await renderAsync(
         createElement(PerfectStormAlertEmail, {
           userName: recipient.name || 'Investor',
-          ...data,
+          stockSymbol: data.stockSymbol,
+          stockName: data.stockName,
+          currentPrice: data.currentPrice,
+          stockBeaconScore: data.stockBeaconScore,
+          triggers: {
+            priceTarget: data.triggers.priceTarget,
+            scoreThreshold: data.triggers.scoreThreshold,
+            technicalSignal: data.triggers.technicalSignal || false,
+            fundamentalStrength: data.triggers.fundamentalStrength || false,
+          },
+          moatStrength: (data.moatStrength === 'Strong' || data.moatStrength === 'Moderate' || data.moatStrength === 'Weak') ? data.moatStrength : 'Moderate',
+          recommendation: data.recommendation,
+          strengths: data.strengths,
         })
       );
 
