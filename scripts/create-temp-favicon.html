@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Temporary Favicon</title>
+</head>
+<body>
+    <h1>Temporary Favicon Creator</h1>
+    <p>Open this file in a browser, then right-click and save each image:</p>
+    
+    <h2>32x32 Favicon</h2>
+    <canvas id="favicon32" width="32" height="32" style="border: 1px solid #ccc; image-rendering: pixelated; width: 128px; height: 128px;"></canvas>
+    <br>
+    <a id="download32" download="favicon-32x32.png">Download favicon-32x32.png</a>
+    
+    <h2>16x16 Favicon</h2>
+    <canvas id="favicon16" width="16" height="16" style="border: 1px solid #ccc; image-rendering: pixelated; width: 128px; height: 128px;"></canvas>
+    <br>
+    <a id="download16" download="favicon-16x16.png">Download favicon-16x16.png</a>
+    
+    <h2>180x180 Apple Touch Icon</h2>
+    <canvas id="apple180" width="180" height="180" style="border: 1px solid #ccc; width: 180px; height: 180px;"></canvas>
+    <br>
+    <a id="downloadApple" download="apple-touch-icon.png">Download apple-touch-icon.png</a>
+
+    <script>
+        function drawBeaconIcon(canvas) {
+            const ctx = canvas.getContext('2d');
+            const size = canvas.width;
+            const centerX = size / 2;
+            const centerY = size / 2;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, size, size);
+            
+            // Set up gradient
+            const gradient = ctx.createLinearGradient(centerX, 0, centerX, size);
+            gradient.addColorStop(0, '#3B82F6');
+            gradient.addColorStop(0.5, '#2563EB');
+            gradient.addColorStop(1, '#1D4ED8');
+            
+            // Draw star/beacon shape
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            
+            // Scale factor based on canvas size
+            const scale = size / 48;
+            
+            // Star points (scaled)
+            ctx.moveTo(centerX, 2 * scale);
+            ctx.lineTo((centerX + 4.2 * scale), 16.8 * scale);
+            ctx.lineTo((size - 5 * scale), centerY);
+            ctx.lineTo((centerX + 4.2 * scale), 25.2 * scale);
+            ctx.lineTo(centerX, (size - 8 * scale));
+            ctx.lineTo((centerX - 4.2 * scale), 25.2 * scale);
+            ctx.lineTo(5 * scale, centerY);
+            ctx.lineTo((centerX - 4.2 * scale), 16.8 * scale);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Draw center circle
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 4 * scale, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Draw on all canvases
+        const favicon32 = document.getElementById('favicon32');
+        const favicon16 = document.getElementById('favicon16');
+        const apple180 = document.getElementById('apple180');
+        
+        drawBeaconIcon(favicon32);
+        drawBeaconIcon(favicon16);
+        drawBeaconIcon(apple180);
+        
+        // Set up download links
+        function setupDownload(canvasId, linkId) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.getElementById(linkId);
+            
+            canvas.toBlob(function(blob) {
+                const url = URL.createObjectURL(blob);
+                link.href = url;
+            });
+        }
+        
+        setupDownload('favicon32', 'download32');
+        setupDownload('favicon16', 'download16');
+        setupDownload('apple180', 'downloadApple');
+    </script>
+</body>
+</html>

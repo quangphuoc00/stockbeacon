@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Favicon Generator</title>
+</head>
+<body>
+    <h1>StockBeacon Favicon Generator</h1>
+    <p>This page generates PNG favicons from the SVG. Right-click each canvas and save as PNG.</p>
+    
+    <div id="canvases"></div>
+
+    <script>
+        const svgString = `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M24 2L28.2 16.8L43 21L28.2 25.2L24 40L19.8 25.2L5 21L19.8 16.8L24 2Z" fill="url(#favicon-gradient)"/>
+            <circle cx="24" cy="21" r="4" fill="white" opacity="0.9"/>
+            <defs>
+                <linearGradient id="favicon-gradient" x1="24" y1="2" x2="24" y2="40" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#3B82F6"/>
+                    <stop offset="0.5" stop-color="#2563EB"/>
+                    <stop offset="1" stop-color="#1D4ED8"/>
+                </linearGradient>
+            </defs>
+        </svg>`;
+
+        const sizes = [
+            { size: 16, name: 'favicon-16x16.png' },
+            { size: 32, name: 'favicon-32x32.png' },
+            { size: 48, name: 'favicon-48x48.png' },
+            { size: 180, name: 'apple-touch-icon.png' },
+        ];
+
+        const container = document.getElementById('canvases');
+
+        sizes.forEach(({ size, name }) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            canvas.style.border = '1px solid #ccc';
+            canvas.style.margin = '10px';
+            
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            img.onload = function() {
+                ctx.drawImage(img, 0, 0, size, size);
+                
+                // Create download link
+                canvas.toBlob(function(blob) {
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = name;
+                    link.textContent = `Download ${name}`;
+                    link.style.display = 'block';
+                    container.appendChild(link);
+                });
+            };
+            
+            const blob = new Blob([svgString], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            img.src = url;
+            
+            const label = document.createElement('p');
+            label.textContent = `${name} (${size}x${size})`;
+            container.appendChild(label);
+            container.appendChild(canvas);
+        });
+    </script>
+</body>
+</html>
