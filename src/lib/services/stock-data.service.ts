@@ -3,6 +3,8 @@ import { StockBeaconScoreService } from './stockbeacon-score.service'
 import { RedisCacheService } from './redis-cache.service'
 import { RedisBatchService } from './redis-batch.service'
 import { StockQuote, StockFinancials, StockScore, StockHistorical } from '@/types/stock'
+import { MoatAnalysis } from './ai-moat.service'
+import { getRedisInstance } from '@/lib/utils/redis'
 
 export class StockDataService {
   /**
@@ -42,10 +44,42 @@ export class StockDataService {
     // Historical data is optional - use empty array if not available
     const safeHistorical = historical || []
     
+    // Check for cached moat analysis
+    let moatAnalysis: MoatAnalysis | undefined
+    try {
+      const redis = getRedisInstance()
+      const moatCacheKey = `moat_analysis:${symbol}`
+      console.log(`[StockDataService] Checking for cached moat analysis: ${moatCacheKey}`)
+      const cachedMoat = await redis.get(moatCacheKey)
+      if (cachedMoat) {
+        moatAnalysis = cachedMoat as MoatAnalysis
+        console.log(`[StockDataService] Found cached moat analysis for ${symbol}, score: ${moatAnalysis.overallScore}/100`)
+      } else {
+        console.log(`[StockDataService] No cached moat analysis found for ${symbol}`)
+      }
+    } catch (error) {
+      console.error('Error fetching cached moat analysis:', error)
+    }
+    
     // Calculate fresh score if needed
     let score = cachedData.score
+    
+    // Check if we need to recalculate due to moat mismatch
+    if (score && moatAnalysis) {
+      const expectedMoatScore = Math.round((moatAnalysis.overallScore / 100) * 20)
+      if (score.moatScore !== expectedMoatScore) {
+        console.log(`[StockDataService] Moat score mismatch detected for ${symbol}:`)
+        console.log(`  - Cached score has moat: ${score.moatScore}/20`)
+        console.log(`  - Current moat analysis: ${moatAnalysis.overallScore}/100 → ${expectedMoatScore}/20`)
+        console.log(`  - Recalculating score...`)
+        score = null // Force recalculation
+      }
+    }
+    
     if (!score && safeHistorical && safeHistorical.length > 0) {
-      score = StockBeaconScoreService.calculateScore(quote, financials, safeHistorical as StockHistorical[])
+      console.log(`[StockDataService] Calculating new score for ${symbol}...`)
+      score = StockBeaconScoreService.calculateScore(quote, financials, safeHistorical as StockHistorical[], moatAnalysis)
+      console.log(`[StockDataService] New score calculated: ${score.score} (moat: ${score.moatScore}/20)`)
     }
     
     // Use batch operation to cache all fresh data at once
@@ -64,9 +98,11 @@ export class StockDataService {
       dataToCache.historical = safeHistorical
       ttls.historical = 3600 // 1 hour
     }
-    if (!cachedData.score && score) {
+    // Update score cache if we have a new score OR if score was recalculated due to moat mismatch
+    if (score && (!cachedData.score || (cachedData.score && cachedData.score.moatScore !== score.moatScore))) {
       dataToCache.score = score
       ttls.score = 3600 // 1 hour
+      console.log(`[StockDataService] Updating cached score for ${symbol} with moat: ${score.moatScore}/20`)
     }
     
     // Batch write to Redis
@@ -251,8 +287,21 @@ export class StockDataService {
         throw new Error(`Incomplete data for ${symbol}`)
       }
       
+      // Check for cached moat analysis
+      let moatAnalysis: MoatAnalysis | undefined
+      try {
+        const redis = getRedisInstance()
+        const moatCacheKey = `moat_analysis:${symbol}`
+        const cachedMoat = await redis.get(moatCacheKey)
+        if (cachedMoat) {
+          moatAnalysis = cachedMoat as MoatAnalysis
+        }
+      } catch (error) {
+        console.error('Error fetching cached moat analysis:', error)
+      }
+      
       // Calculate fresh score
-      const score = StockBeaconScoreService.calculateScore(quote, financials, historical)
+      const score = StockBeaconScoreService.calculateScore(quote, financials, historical, moatAnalysis)
       
       // Cache everything
       await Promise.all([

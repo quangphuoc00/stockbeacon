@@ -19,6 +19,11 @@ export class StockBeaconScoreService {
     const moatScore = aiMoatAnalysis 
       ? this.calculateMoatScoreFromAI(aiMoatAnalysis)
       : this.estimateMoatScore(financials)
+    
+    console.log(`[StockBeaconScore] Calculating score for ${quote.symbol}:`)
+    console.log(`  - AI Moat Analysis: ${aiMoatAnalysis ? `Yes (${aiMoatAnalysis.overallScore}/100)` : 'No (using estimate)'}`)
+    console.log(`  - Moat Score: ${moatScore}/20`)
+    
     const growthScore = this.calculateGrowthScore(financials)
     
     // Calculate timing components

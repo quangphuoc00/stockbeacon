@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -29,7 +30,9 @@ import {
   Zap,
   Users,
   TrendingUp as Scale,
-  Building
+  Building,
+  HelpCircle,
+  ChevronRight
 } from 'lucide-react'
 import { formatCurrency, formatPercentage, getScoreColor, getScoreBgColor, formatLargeNumber } from '@/lib/utils'
 import Link from 'next/link'
@@ -55,6 +58,10 @@ export function StockDetailsClient({
   initialMoatAnalysis,
   initialCompanyProfile 
 }: StockDetailsClientProps) {
+  console.log(`[StockDetailsClient] Initializing for ${symbol}`)
+  console.log(`  - Initial moat analysis: ${initialMoatAnalysis ? `Yes (${initialMoatAnalysis.overallScore}/100)` : 'No'}`)
+  console.log(`  - Initial score: ${initialStockData?.stockbeaconScore?.score || 'N/A'} (moat: ${initialStockData?.stockbeaconScore?.moatScore || 'N/A'}/20)`)
+  
   const [stockData, setStockData] = useState(initialStockData)
   const [moatAnalysis, setMoatAnalysis] = useState<MoatAnalysis | null>(initialMoatAnalysis)
   const [loadingMoat, setLoadingMoat] = useState(false)
@@ -76,7 +83,7 @@ export function StockDetailsClient({
   const [loadingProfile, setLoadingProfile] = useState(false)
   const [missingFields, setMissingFields] = useState<any>(null)
   const [selectedTab, setSelectedTab] = useState('overview')
-  const [hasLoadedMoat, setHasLoadedMoat] = useState(false)
+  const [hasLoadedMoat, setHasLoadedMoat] = useState(!!initialMoatAnalysis)
   const [manualInputs, setManualInputs] = useState<{
     operatingCashflow?: number
     shareholderEquity?: number
@@ -87,6 +94,9 @@ export function StockDetailsClient({
   
   // Ref to prevent concurrent valuation loads
   const isLoadingValuationRef = useRef(false)
+  
+  // Ref for tabs section for smooth scrolling
+  const tabsRef = useRef<HTMLDivElement>(null)
   
   // Real-time stock updates - disabled to prevent re-render issues
   // const realtimeData = useStockSubscription(symbol)
@@ -180,6 +190,23 @@ export function StockDetailsClient({
       
       if (response.ok) {
         setMoatAnalysis(data.moatAnalysis)
+        
+        // Recalculate score with the new moat analysis
+        console.log('Moat analysis loaded, recalculating score...')
+        const scoreResponse = await fetch(`/api/stocks/${symbol}/recalculate-score`, {
+          method: 'POST'
+        })
+        
+        if (scoreResponse.ok) {
+          const scoreData = await scoreResponse.json()
+          console.log('Score recalculated:', scoreData.score)
+          
+          // Update stockData with new score
+          setStockData((prevData: any) => ({
+            ...prevData,
+            stockbeaconScore: scoreData.score
+          }))
+        }
       } else {
         // Handle error response
         if (response.status === 503 && data.fallbackAnalysis) {
@@ -365,11 +392,28 @@ export function StockDetailsClient({
     }
   }
 
+  const handleMetricClick = (tabValue: string) => {
+    // Smooth scroll to tabs section
+    if (tabsRef.current) {
+      tabsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    
+    // Switch to the appropriate tab after a short delay to allow scrolling
+    setTimeout(() => {
+      setSelectedTab(tabValue)
+    }, 300)
+  }
+
   // Get the quote and other data
   const quote = realtimeData || stockData?.quote
   const score = stockData?.stockbeaconScore
   const financials = stockData?.financials
   const historical = stockData?.historical
+  
+  // Debug logging
+  if (score) {
+    console.log(`[UI] Displaying scores - Total: ${score.score}, Moat: ${score.moatScore}/20`)
+  }
 
   if (!stockData) {
     return (
@@ -386,7 +430,8 @@ export function StockDetailsClient({
   const recommendation = getRecommendation()
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <TooltipProvider>
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-start justify-between mb-4">
@@ -585,47 +630,147 @@ export function StockDetailsClient({
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-foreground">Business Quality ({score.businessQualityScore}/60)</p>
                     <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Financial Health</span>
-                        <span className={`text-xs font-medium ${score.financialHealthScore >= 15 ? 'text-green-600' : score.financialHealthScore >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
-                          {score.financialHealthScore}/25
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Competitive Moat</span>
-                        <span className={`text-xs font-medium ${score.moatScore >= 15 ? 'text-green-600' : score.moatScore >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
-                          {score.moatScore}/20
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Growth Potential</span>
-                        <span className={`text-xs font-medium ${score.growthScore >= 10 ? 'text-green-600' : score.growthScore >= 7 ? 'text-yellow-600' : 'text-red-600'}`}>
-                          {score.growthScore}/15
-                        </span>
-                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                              onClick={() => handleMetricClick('financials')}
+                              className="w-full flex items-center justify-between hover:bg-muted/50 p-1 rounded transition-colors"
+                            >
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-muted-foreground hover:text-primary">Financial Health</span>
+                                <HelpCircle className="h-3 w-3 text-muted-foreground" />
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className={`text-xs font-medium ${score.financialHealthScore >= 15 ? 'text-green-600' : score.financialHealthScore >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                  {score.financialHealthScore}/25
+                                </span>
+                                <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                              </div>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">Measures ROE, ROA, debt levels, liquidity, and profit margins</p>
+                          </TooltipContent>
+                      </Tooltip>
+                      
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                              onClick={() => handleMetricClick('analysis')}
+                              className="w-full flex items-center justify-between hover:bg-muted/50 p-1 rounded transition-colors"
+                            >
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-muted-foreground hover:text-primary">Competitive Moat</span>
+                                <HelpCircle className="h-3 w-3 text-muted-foreground" />
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className={`text-xs font-medium ${score.moatScore >= 15 ? 'text-green-600' : score.moatScore >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                  {score.moatScore}/20
+                                </span>
+                                <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                              </div>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">AI-powered analysis of sustainable competitive advantages</p>
+                          </TooltipContent>
+                      </Tooltip>
+                      
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                              onClick={() => handleMetricClick('financials')}
+                              className="w-full flex items-center justify-between hover:bg-muted/50 p-1 rounded transition-colors"
+                            >
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-muted-foreground hover:text-primary">Growth Potential</span>
+                                <HelpCircle className="h-3 w-3 text-muted-foreground" />
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className={`text-xs font-medium ${score.growthScore >= 10 ? 'text-green-600' : score.growthScore >= 7 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                  {score.growthScore}/15
+                                </span>
+                                <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                              </div>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">Revenue and earnings growth rates</p>
+                          </TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-foreground">Time to Buy ({score.timingScore}/40)</p>
                     <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Valuation</span>
-                        <span className={`text-xs font-medium ${score.valuationScore >= 15 ? 'text-green-600' : score.valuationScore >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
-                          {score.valuationScore}/20
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Technical Momentum</span>
-                        <span className={`text-xs font-medium ${score.technicalScore >= 15 ? 'text-green-600' : score.technicalScore >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
-                          {score.technicalScore}/20
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground font-semibold">Overall Signal</span>
-                        <span className={`text-xs font-bold ${score.score >= 70 ? 'text-green-600' : score.score >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
-                          {score.recommendation.replace('_', ' ').toUpperCase()}
-                        </span>
-                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                              onClick={() => handleMetricClick('valuation')}
+                              className="w-full flex items-center justify-between hover:bg-muted/50 p-1 rounded transition-colors"
+                            >
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-muted-foreground hover:text-primary">Valuation</span>
+                                <HelpCircle className="h-3 w-3 text-muted-foreground" />
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className={`text-xs font-medium ${score.valuationScore >= 15 ? 'text-green-600' : score.valuationScore >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                  {score.valuationScore}/20
+                                </span>
+                                <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                              </div>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">P/E ratio, PEG ratio, price-to-book, and 52-week position</p>
+                          </TooltipContent>
+                      </Tooltip>
+                      
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                              onClick={() => handleMetricClick('technicals')}
+                              className="w-full flex items-center justify-between hover:bg-muted/50 p-1 rounded transition-colors"
+                            >
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-muted-foreground hover:text-primary">Technical Momentum</span>
+                                <HelpCircle className="h-3 w-3 text-muted-foreground" />
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className={`text-xs font-medium ${score.technicalScore >= 15 ? 'text-green-600' : score.technicalScore >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                  {score.technicalScore}/20
+                                </span>
+                                <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                              </div>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">Price trends, moving averages, RSI, and support/resistance levels</p>
+                          </TooltipContent>
+                      </Tooltip>
+                      
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                              onClick={() => handleMetricClick('overview')}
+                              className="w-full flex items-center justify-between hover:bg-muted/50 p-1 rounded transition-colors"
+                            >
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-muted-foreground font-semibold hover:text-primary">Overall Signal</span>
+                                <HelpCircle className="h-3 w-3 text-muted-foreground" />
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className={`text-xs font-bold ${score.score >= 70 ? 'text-green-600' : score.score >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                  {score.recommendation.replace('_', ' ').toUpperCase()}
+                                </span>
+                                <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                              </div>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">Combined recommendation based on total score</p>
+                          </TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
                 </div>
@@ -653,7 +798,8 @@ export function StockDetailsClient({
       </div>
 
       {/* Main Content Tabs */}
-      <Tabs defaultValue="overview" value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
+      <div ref={tabsRef}>
+        <Tabs defaultValue="overview" value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="analysis">Moat Analysis</TabsTrigger>
@@ -916,6 +1062,13 @@ export function StockDetailsClient({
                         <Badge className={`${getMoatColor(moatAnalysis.strength)}`}>
                           {moatAnalysis.strength} Moat
                         </Badge>
+                        {/* Debug: Expected score conversion */}
+                        {(() => {
+                          const expectedScore = Math.round((moatAnalysis.overallScore / 100) * 20)
+                          const isSync = score && score.moatScore === expectedScore
+                          console.log(`[Moat Tab] AI Score: ${moatAnalysis.overallScore}/100 → Should be ${expectedScore}/20 in Overview (Currently: ${score?.moatScore || 'N/A'}/20) ${isSync ? '✓ SYNCED' : '❌ NOT SYNCED'}`)
+                          return null
+                        })()}
                       </div>
                     </div>
                     <Shield className={`h-12 w-12 ${
@@ -1213,6 +1366,8 @@ export function StockDetailsClient({
           <NewsFeed symbol={symbol} />
         </TabsContent>
       </Tabs>
+      </div>
     </div>
+    </TooltipProvider>
   )
 }

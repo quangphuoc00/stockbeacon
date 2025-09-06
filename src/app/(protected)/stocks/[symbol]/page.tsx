@@ -4,6 +4,7 @@ import { RedisCacheService } from '@/lib/services/redis-cache.service'
 import { StockDataService } from '@/lib/services/stock-data.service'
 import { formatCurrency } from '@/lib/utils'
 import { StockDetailsClient } from '@/components/stocks/stock-details-client'
+import { getRedisInstance } from '@/lib/utils/redis'
 
 interface StockPageProps {
   params: Promise<{ symbol: string }>
@@ -101,8 +102,19 @@ async function fetchStockData(symbol: string) {
 
 async function fetchMoatAnalysis(symbol: string) {
   try {
-    // For now, we'll let the client fetch this
-    // In the future, we can implement server-side caching
+    // Check if we have a cached moat analysis
+    const cacheKey = `moat_analysis:${symbol}`
+    const redis = getRedisInstance()
+    
+    console.log(`[Page] Checking for cached moat analysis: ${cacheKey}`)
+    const cached = await redis.get(cacheKey)
+    if (cached) {
+      console.log(`[Page] Found cached moat analysis for ${symbol}, score: ${(cached as any).overallScore}/100`)
+      return cached as any
+    }
+    
+    console.log(`[Page] No cached moat analysis found for ${symbol}`)
+    // If no cached analysis, return null and let client fetch it
     return null
   } catch (error) {
     console.error(`Error fetching moat analysis for ${symbol}:`, error)
