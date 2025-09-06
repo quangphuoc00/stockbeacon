@@ -40,6 +40,7 @@ import { ChartWrapper } from '@/components/stocks/chart-wrapper'
 import { type ComprehensiveValuation } from '@/lib/services/valuation.service'
 import { type NewsAnalysis } from '@/lib/services/news-analysis.service'
 import { type MoatAnalysis } from '@/lib/services/ai-moat.service'
+import { CompanyProfileShimmer, MoatAnalysisShimmer } from '@/components/ui/shimmer'
 
 interface StockDetailsClientProps {
   symbol: string
@@ -582,41 +583,47 @@ export function StockDetailsClient({
                     </div>
                   )}
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-foreground">Business Quality</p>
+                    <p className="text-sm font-medium text-foreground">Business Quality ({score.businessQualityScore}/60)</p>
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm ${score.businessQualityScore >= 35 ? 'text-green-600' : 'text-muted-foreground'}`}>
-                          {score.businessQualityScore >= 35 ? '✓' : '○'} Strong Financials
-                          </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm ${score.businessQualityScore >= 45 ? 'text-green-600' : 'text-muted-foreground'}`}>
-                          {score.businessQualityScore >= 45 ? '✓' : '○'} Competitive Moat
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Financial Health</span>
+                        <span className={`text-xs font-medium ${score.financialHealthScore >= 15 ? 'text-green-600' : score.financialHealthScore >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {score.financialHealthScore}/25
                         </span>
-                  </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm ${score.businessQualityScore >= 55 ? 'text-green-600' : 'text-muted-foreground'}`}>
-                          {score.businessQualityScore >= 55 ? '✓' : '○'} Growth Potential
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Competitive Moat</span>
+                        <span className={`text-xs font-medium ${score.moatScore >= 15 ? 'text-green-600' : score.moatScore >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {score.moatScore}/20
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Growth Potential</span>
+                        <span className={`text-xs font-medium ${score.growthScore >= 10 ? 'text-green-600' : score.growthScore >= 7 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {score.growthScore}/15
                         </span>
                       </div>
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-foreground">Time to Buy</p>
+                    <p className="text-sm font-medium text-foreground">Time to Buy ({score.timingScore}/40)</p>
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm ${score.timingScore >= 25 ? 'text-green-600' : 'text-muted-foreground'}`}>
-                          {score.timingScore >= 25 ? '✓' : '○'} Fair Valuation
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Valuation</span>
+                        <span className={`text-xs font-medium ${score.valuationScore >= 15 ? 'text-green-600' : score.valuationScore >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {score.valuationScore}/20
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm ${score.timingScore >= 35 ? 'text-green-600' : 'text-muted-foreground'}`}>
-                          {score.timingScore >= 35 ? '✓' : '○'} Positive Momentum
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Technical Momentum</span>
+                        <span className={`text-xs font-medium ${score.technicalScore >= 15 ? 'text-green-600' : score.technicalScore >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {score.technicalScore}/20
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm ${(score.businessQualityScore + score.timingScore) >= 70 ? 'text-green-600' : 'text-muted-foreground'}`}>
-                          {(score.businessQualityScore + score.timingScore) >= 70 ? '✓' : '○'} Buy Signal
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground font-semibold">Overall Signal</span>
+                        <span className={`text-xs font-bold ${score.score >= 70 ? 'text-green-600' : score.score >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {score.recommendation.replace('_', ' ').toUpperCase()}
                         </span>
                       </div>
                     </div>
@@ -782,25 +789,7 @@ export function StockDetailsClient({
                 <CardTitle>Company Profile</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-center py-8">
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="relative w-16 h-16">
-                      <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-primary/20 via-primary/10 to-transparent animate-spin"></div>
-                      <div className="absolute inset-2 rounded-full bg-gradient-to-bl from-primary/10 via-transparent to-primary/10 animate-spin-reverse"></div>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Building className="w-6 h-6 text-primary animate-pulse-subtle" />
-                      </div>
-                    </div>
-                    <div className="mt-4 flex items-center justify-center gap-2">
-                      <span className="text-sm text-muted-foreground">Loading company information</span>
-                      <span className="flex gap-1">
-                        <span className="w-1 h-1 bg-primary rounded-full animate-bounce-dot" style={{ animationDelay: '0ms' }}></span>
-                        <span className="w-1 h-1 bg-primary rounded-full animate-bounce-dot" style={{ animationDelay: '150ms' }}></span>
-                        <span className="w-1 h-1 bg-primary rounded-full animate-bounce-dot" style={{ animationDelay: '300ms' }}></span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                <CompanyProfileShimmer />
               </CardContent>
             </Card>
           ) : companyProfile ? (
@@ -915,27 +904,7 @@ export function StockDetailsClient({
             </CardHeader>
             <CardContent>
               {loadingMoat ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="relative w-24 h-24">
-                      <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-primary/20 via-primary/10 to-transparent animate-spin" />
-                      <div className="absolute inset-2 rounded-full bg-gradient-to-bl from-primary/10 via-transparent to-primary/10 animate-spin-reverse" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Shield className="w-10 h-10 text-primary animate-pulse-subtle" />
-                      </div>
-                    </div>
-                    <div className="mt-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <span className="text-sm text-muted-foreground">Analyzing competitive moat</span>
-                        <span className="flex gap-1">
-                          <span className="w-1 h-1 bg-primary rounded-full animate-bounce-dot" style={{ animationDelay: '0ms' }} />
-                          <span className="w-1 h-1 bg-primary rounded-full animate-bounce-dot" style={{ animationDelay: '150ms' }} />
-                          <span className="w-1 h-1 bg-primary rounded-full animate-bounce-dot" style={{ animationDelay: '300ms' }} />
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <MoatAnalysisShimmer />
               ) : moatAnalysis ? (
                 <div className="space-y-6">
                   {/* Overall Moat Score */}
