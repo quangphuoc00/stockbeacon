@@ -129,7 +129,18 @@ export function ChartWrapper({
       )
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch additional data: ${response.statusText}`)
+        // If we get a 404, it means no data is available for this date range
+        if (response.status === 404) {
+          console.log('No additional historical data available for this date range')
+          loadingMoreRef.current = false
+          setIsLoadingMore(false)
+          return
+        }
+        // Only throw for non-404 errors
+        console.warn(`Failed to fetch additional data: ${response.status} ${response.statusText}`)
+        loadingMoreRef.current = false
+        setIsLoadingMore(false)
+        return
       }
       
       const result = await response.json()
@@ -169,7 +180,10 @@ export function ChartWrapper({
         }
       }
     } catch (error) {
-      console.error('Error loading more historical data:', error)
+      // Don't log 404 errors as they're expected when no more data is available
+      if (error instanceof Error && !error.message.includes('Not Found')) {
+        console.error('Error loading more historical data:', error)
+      }
     } finally {
       loadingMoreRef.current = false
       setIsLoadingMore(false)

@@ -64,7 +64,7 @@ export function StockDetailsClient({
   
   const [stockData, setStockData] = useState(initialStockData)
   const [moatAnalysis, setMoatAnalysis] = useState<MoatAnalysis | null>(initialMoatAnalysis)
-  const [loadingMoat, setLoadingMoat] = useState(false)
+  const [loadingMoat, setLoadingMoat] = useState(false) // Don't start loading immediately
   const [moatError, setMoatError] = useState<string | null>(null)
   const [isWatching, setIsWatching] = useState(false)
   const [shareMessage, setShareMessage] = useState<string | null>(null)
@@ -83,7 +83,6 @@ export function StockDetailsClient({
   const [loadingProfile, setLoadingProfile] = useState(false)
   const [missingFields, setMissingFields] = useState<any>(null)
   const [selectedTab, setSelectedTab] = useState('overview')
-  const [hasLoadedMoat, setHasLoadedMoat] = useState(!!initialMoatAnalysis)
   const [manualInputs, setManualInputs] = useState<{
     operatingCashflow?: number
     shareholderEquity?: number
@@ -120,6 +119,14 @@ export function StockDetailsClient({
     
     document.title = newTitle
   }, [symbol, stockData?.quote?.price, stockData?.quote?.regularMarketPrice, realtimeData?.price])
+
+  // Load moat analysis immediately on page load if not available
+  useEffect(() => {
+    if (!moatAnalysis && !moatError) {
+      console.log('[StockDetailsClient] Loading moat analysis on mount...')
+      loadMoatAnalysis()
+    }
+  }, []) // Only run on mount
 
   // Track if we've initiated valuation load for current symbol
   const valuationLoadedForSymbolRef = useRef<string>('')
@@ -162,13 +169,12 @@ export function StockDetailsClient({
     }
   }, [symbol])
   
-  // Auto-load moat analysis when analysis tab is selected for the first time
-  useEffect(() => {
-    if (selectedTab === 'analysis' && !hasLoadedMoat && !moatAnalysis && !loadingMoat) {
-      setHasLoadedMoat(true)
-      loadMoatAnalysis()
-    }
-  }, [selectedTab, hasLoadedMoat, moatAnalysis, loadingMoat])
+  // No longer needed - moat loads on mount
+  // useEffect(() => {
+  //   if (selectedTab === 'analysis' && !moatAnalysis && !loadingMoat && !moatError) {
+  //     loadMoatAnalysis()
+  //   }
+  // }, [selectedTab, moatAnalysis, loadingMoat, moatError])
   
   // Auto-load news analysis when needed
   useEffect(() => {
@@ -181,12 +187,27 @@ export function StockDetailsClient({
   // Server sync happens on blur via handleRecalculateValuation
 
   const loadMoatAnalysis = async () => {
+    // Prevent double-loading
+    if (loadingMoat) {
+      console.log('[StockDetailsClient] Already loading moat analysis, skipping...')
+      return
+    }
+    
+    console.log(`[StockDetailsClient] Starting moat analysis load for ${symbol}`)
     setLoadingMoat(true)
     setMoatError(null)
     
     try {
-      const response = await fetch(`/api/stocks/${symbol}/moat`)
-        const data = await response.json()
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+      
+      const response = await fetch(`/api/stocks/${symbol}/moat`, {
+        signal: controller.signal
+      })
+      clearTimeout(timeoutId)
+      
+      const data = await response.json()
       
       if (response.ok) {
         setMoatAnalysis(data.moatAnalysis)
@@ -215,10 +236,15 @@ export function StockDetailsClient({
           setMoatError(data.error || 'Failed to generate moat analysis')
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading moat analysis:', error)
-      setMoatError('Network error: Unable to connect to the moat analysis service')
+      if (error.name === 'AbortError') {
+        setMoatError('Request timed out. Please try again.')
+      } else {
+        setMoatError('Network error: Unable to connect to the moat analysis service')
+      }
     } finally {
+      console.log(`[StockDetailsClient] Moat analysis load completed for ${symbol}`)
       setLoadingMoat(false)
     }
   }
@@ -605,9 +631,17 @@ export function StockDetailsClient({
                         <div>
                           <div className="flex justify-between items-center mb-1">
                             <span className="text-xs text-muted-foreground">Business Quality</span>
-                            <span className="text-xs font-medium">{Math.round((score.businessQualityScore/60)*100)}%</span>
+                            {loadingMoat || (!moatAnalysis && !moatError) || score.moatScore === 0 ? (
+                              <div className="h-3 w-8 bg-muted animate-pulse rounded" />
+                            ) : (
+                              <span className="text-xs font-medium">{Math.round((score.businessQualityScore/60)*100)}%</span>
+                            )}
                           </div>
-                          <Progress value={(score.businessQualityScore/60)*100} className="h-2" />
+                          {loadingMoat || (!moatAnalysis && !moatError) || score.moatScore === 0 ? (
+                            <div className="h-2 w-full bg-muted animate-pulse rounded" />
+                          ) : (
+                            <Progress value={(score.businessQualityScore/60)*100} className="h-2" />
+                          )}
                         </div>
                         <div>
                           <div className="flex justify-between items-center mb-1">
@@ -619,19 +653,30 @@ export function StockDetailsClient({
                         <div className="pt-2 border-t">
                           <div className="flex justify-between items-center">
                             <span className="text-xs font-medium">Overall</span>
-                            <Badge variant={(score.businessQualityScore + score.timingScore) >= 70 ? "default" : (score.businessQualityScore + score.timingScore) >= 50 ? "secondary" : "outline"}>
-                              {score.businessQualityScore + score.timingScore}/100
-                            </Badge>
+                            {loadingMoat || (!moatAnalysis && !moatError) || score.moatScore === 0 ? (
+                              <div className="h-5 w-12 bg-muted animate-pulse rounded" />
+                            ) : (
+                              <Badge variant={(score.businessQualityScore + score.timingScore) >= 70 ? "default" : (score.businessQualityScore + score.timingScore) >= 50 ? "secondary" : "outline"}>
+                                {score.businessQualityScore + score.timingScore}/100
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       </div>
                     </div>
                   )}
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-foreground">Business Quality ({score.businessQualityScore}/60)</p>
+                    <p className="text-sm font-medium text-foreground">
+                      Business Quality {loadingMoat || (!moatAnalysis && !moatError) || score.moatScore === 0 ? (
+                        <span className="inline-block h-4 w-12 bg-muted animate-pulse rounded ml-1" />
+                      ) : (
+                        <span>({score.businessQualityScore}/60)</span>
+                      )}
+                    </p>
                     <div className="space-y-1">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
                             <button
                               onClick={() => handleMetricClick('financials')}
                               className="w-full flex items-center justify-between hover:bg-muted/50 p-1 rounded transition-colors"
@@ -651,10 +696,12 @@ export function StockDetailsClient({
                           <TooltipContent>
                             <p className="text-xs">Measures ROE, ROA, debt levels, liquidity, and profit margins</p>
                           </TooltipContent>
-                      </Tooltip>
+                        </Tooltip>
+                      </TooltipProvider>
                       
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
                             <button
                               onClick={() => handleMetricClick('analysis')}
                               className="w-full flex items-center justify-between hover:bg-muted/50 p-1 rounded transition-colors"
@@ -664,9 +711,13 @@ export function StockDetailsClient({
                                 <HelpCircle className="h-3 w-3 text-muted-foreground" />
                               </div>
                               <div className="flex items-center gap-1">
-                                <span className={`text-xs font-medium ${score.moatScore >= 15 ? 'text-green-600' : score.moatScore >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
-                                  {score.moatScore}/20
-                                </span>
+                                {loadingMoat || (!moatAnalysis && !moatError) || score.moatScore === 0 ? (
+                                  <div className="h-3 w-16 bg-muted animate-pulse rounded" />
+                                ) : (
+                                  <span className={`text-xs font-medium ${score.moatScore >= 15 ? 'text-green-600' : score.moatScore >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                    {score.moatScore}/20
+                                  </span>
+                                )}
                                 <ChevronRight className="h-3 w-3 text-muted-foreground" />
                               </div>
                             </button>
@@ -674,10 +725,12 @@ export function StockDetailsClient({
                           <TooltipContent>
                             <p className="text-xs">AI-powered analysis of sustainable competitive advantages</p>
                           </TooltipContent>
-                      </Tooltip>
+                        </Tooltip>
+                      </TooltipProvider>
                       
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
                             <button
                               onClick={() => handleMetricClick('financials')}
                               className="w-full flex items-center justify-between hover:bg-muted/50 p-1 rounded transition-colors"
@@ -697,14 +750,16 @@ export function StockDetailsClient({
                           <TooltipContent>
                             <p className="text-xs">Revenue and earnings growth rates</p>
                           </TooltipContent>
-                      </Tooltip>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                   </div>
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-foreground">Time to Buy ({score.timingScore}/40)</p>
                     <div className="space-y-1">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
                             <button
                               onClick={() => handleMetricClick('valuation')}
                               className="w-full flex items-center justify-between hover:bg-muted/50 p-1 rounded transition-colors"
@@ -724,10 +779,12 @@ export function StockDetailsClient({
                           <TooltipContent>
                             <p className="text-xs">P/E ratio, PEG ratio, price-to-book, and 52-week position</p>
                           </TooltipContent>
-                      </Tooltip>
+                        </Tooltip>
+                      </TooltipProvider>
                       
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
                             <button
                               onClick={() => handleMetricClick('technicals')}
                               className="w-full flex items-center justify-between hover:bg-muted/50 p-1 rounded transition-colors"
@@ -747,30 +804,8 @@ export function StockDetailsClient({
                           <TooltipContent>
                             <p className="text-xs">Price trends, moving averages, RSI, and support/resistance levels</p>
                           </TooltipContent>
-                      </Tooltip>
-                      
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button
-                              onClick={() => handleMetricClick('overview')}
-                              className="w-full flex items-center justify-between hover:bg-muted/50 p-1 rounded transition-colors"
-                            >
-                              <div className="flex items-center gap-1">
-                                <span className="text-xs text-muted-foreground font-semibold hover:text-primary">Overall Signal</span>
-                                <HelpCircle className="h-3 w-3 text-muted-foreground" />
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <span className={`text-xs font-bold ${score.score >= 70 ? 'text-green-600' : score.score >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
-                                  {score.recommendation.replace('_', ' ').toUpperCase()}
-                                </span>
-                                <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                              </div>
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="text-xs">Combined recommendation based on total score</p>
-                          </TooltipContent>
-                      </Tooltip>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                   </div>
                 </div>
@@ -1049,7 +1084,7 @@ export function StockDetailsClient({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {loadingMoat ? (
+              {(loadingMoat || (!moatAnalysis && !moatError)) ? (
                 <MoatAnalysisShimmer />
               ) : moatAnalysis ? (
                 <div className="space-y-6">

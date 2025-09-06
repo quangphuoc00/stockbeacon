@@ -57,7 +57,7 @@ export default async function StockPage({ params }: StockPageProps) {
   const { symbol } = await params
   const stockSymbol = symbol.toUpperCase()
   
-  // Fetch all data in parallel
+  // Fetch all data in parallel for faster page load
   const [stockData, moatAnalysis, companyProfile] = await Promise.all([
     fetchStockData(stockSymbol),
     fetchMoatAnalysis(stockSymbol),
@@ -102,7 +102,7 @@ async function fetchStockData(symbol: string) {
 
 async function fetchMoatAnalysis(symbol: string) {
   try {
-    // Check if we have a cached moat analysis
+    // Only check cache, don't fetch fresh data to keep page load fast
     const cacheKey = `moat_analysis:${symbol}`
     const redis = getRedisInstance()
     
@@ -114,7 +114,7 @@ async function fetchMoatAnalysis(symbol: string) {
     }
     
     console.log(`[Page] No cached moat analysis found for ${symbol}`)
-    // If no cached analysis, return null and let client fetch it
+    // Return null and let client fetch it when needed
     return null
   } catch (error) {
     console.error(`Error fetching moat analysis for ${symbol}:`, error)
