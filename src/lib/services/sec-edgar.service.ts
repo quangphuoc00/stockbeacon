@@ -1,375 +1,196 @@
-/**
- * SEC EDGAR API Service
- * Fetches company filings and business information from SEC
- */
+import { FinancialStatements } from '@/types/stock'
+import { getRedisInstance } from '@/lib/utils/redis'
+import { SECEdgarHelpers, SECFact } from './sec-edgar-helpers'
+import fallbackCIKCache from './sec-cik-cache.json'
 
-import { Redis } from '@upstash/redis';
-
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
-
-export interface CompanyFiling {
-  cik: string;
-  ticker: string;
-  companyName: string;
-  filingType: string;
-  filingDate: string;
-  filingUrl: string;
-  businessDescription?: string;
-  riskFactors?: string[];
-  competitiveStrengths?: string[];
-}
-
-export interface CompanyOverview {
-  cik: string;
-  ticker: string;
-  name: string;
-  sic: string;
-  sicDescription: string;
-  category: string;
-  fiscalYearEnd: string;
-  stateOfIncorporation: string;
-  businessAddress: {
-    street1: string;
-    street2?: string;
-    city: string;
-    stateOrCountry: string;
-    zipCode: string;
-  };
-  phone?: string;
-  ein?: string;
-  entityType: string;
-  insiderTransactionForOwnerExists: boolean;
-  insiderTransactionForIssuerExists: boolean;
-  tickers: string[];
-  exchanges: string[];
-  formerNames: Array<{
-    name: string;
-    from: string;
-    to: string;
-  }>;
+interface CompanyTicker {
+  cik_str: number
+  ticker: string
+  title: string
 }
 
 export class SECEdgarService {
-  private static SEC_BASE_URL = 'https://data.sec.gov';
-  private static SEC_SUBMISSIONS_URL = `${SECEdgarService.SEC_BASE_URL}/submissions`;
-  private static SEC_COMPANY_TICKERS_URL = 'https://www.sec.gov/files/company_tickers.json';
-  private static CACHE_PREFIX = 'sec_filing:';
-  private static CACHE_TTL = 86400 * 7; // 7 days cache for SEC data
-  
-  // User agent required by SEC
-  private static headers = {
-    'User-Agent': process.env.SEC_USER_AGENT || 'StockBeacon/1.0 (contact@stockbeacon.app)',
-    'Accept': 'application/json',
-  };
+  private static readonly BASE_URL = 'https://data.sec.gov'
+  private static readonly USER_AGENT = 'StockBeacon/1.0 (contact@stockbeacon.com)'
+  private static cikCache = new Map<string, string>()
+  private static cikMappingLoaded = false
+  private static lastFetchAttempt = 0
+  private static fetchRetryDelay = 60000 // Start with 1 minute
 
   /**
-   * Get CIK (Central Index Key) from stock ticker
+   * Load symbol to CIK mapping from SEC
    */
-  static async getCIKFromTicker(ticker: string): Promise<string | null> {
-    const cacheKey = `cik_mapping:${ticker.toUpperCase()}`;
-    
-    // Check cache first
-    try {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return cached as string;
-      }
-    } catch (error) {
-      console.error('Cache read error:', error);
-    }
+  private static async loadCIKMapping(): Promise<void> {
+    if (this.cikMappingLoaded) return
 
     try {
-      // Fetch company tickers mapping
-      const response = await fetch(this.SEC_COMPANY_TICKERS_URL, {
-        headers: this.headers,
-      });
-
-      if (!response.ok) {
-        throw new Error(`SEC API error: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      
-      // Find the CIK for the given ticker
-      for (const key in data) {
-        if (data[key].ticker === ticker.toUpperCase()) {
-          const cik = String(data[key].cik_str).padStart(10, '0');
-          
-          // Cache the result
-          try {
-            await redis.setex(cacheKey, this.CACHE_TTL, cik);
-          } catch (error) {
-            console.error('Cache write error:', error);
+      // Try to load from Redis cache first
+      const redis = getRedisInstance()
+      if (redis) {
+        try {
+          const cached = await redis.get('sec:cik:mapping')
+          if (cached && typeof cached === 'string') {
+            const mapping = JSON.parse(cached)
+            Object.entries(mapping).forEach(([ticker, cik]) => {
+              this.cikCache.set(ticker, cik as string)
+            })
+            this.cikMappingLoaded = true
+            console.log(`[SEC] Loaded ${this.cikCache.size} CIK mappings from cache`)
+            return
           }
-          
-          return cik;
+        } catch (redisError) {
+          console.log('[SEC] Redis not available, will try other sources')
         }
       }
-      
-      return null;
+
+      // Check if we should retry fetching from SEC (rate limit backoff)
+      const now = Date.now()
+      if (this.lastFetchAttempt && (now - this.lastFetchAttempt) < this.fetchRetryDelay) {
+        console.log(`[SEC] Rate limited, using fallback cache. Next retry in ${Math.round((this.fetchRetryDelay - (now - this.lastFetchAttempt)) / 1000)}s`)
+        this.loadFallbackCache()
+        return
+      }
+
+      // Fetch from SEC
+      this.lastFetchAttempt = now
+      const response = await fetch(
+        'https://www.sec.gov/files/company_tickers.json',
+        { 
+          headers: { 'User-Agent': this.USER_AGENT },
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        }
+      )
+
+      if (!response.ok) {
+        if (response.status === 429 || response.status === 503) {
+          // Rate limited - exponential backoff
+          this.fetchRetryDelay = Math.min(this.fetchRetryDelay * 2, 3600000) // Max 1 hour
+          console.log(`[SEC] Rate limited (${response.status}), next retry delay: ${this.fetchRetryDelay / 1000}s`)
+          this.loadFallbackCache()
+          return
+        }
+        throw new Error(`Failed to fetch CIK mapping: ${response.status}`)
+      }
+
+      // Reset retry delay on success
+      this.fetchRetryDelay = 60000
+
+      const data = await response.json()
+      const mapping: Record<string, string> = {}
+
+      // Process all companies
+      Object.values(data as Record<string, CompanyTicker>).forEach(company => {
+        const cik = String(company.cik_str).padStart(10, '0')
+        this.cikCache.set(company.ticker, cik)
+        mapping[company.ticker] = cik
+      })
+
+      // Cache in Redis for 7 days (increased from 24 hours)
+      if (redis) {
+        try {
+          await redis.setex('sec:cik:mapping', 604800, JSON.stringify(mapping))
+        } catch (redisError) {
+          console.log('[SEC] Could not cache CIK mapping in Redis')
+        }
+      }
+
+      this.cikMappingLoaded = true
+      console.log(`[SEC] Loaded ${this.cikCache.size} CIK mappings from SEC API`)
     } catch (error) {
-      console.error('Error fetching CIK:', error);
-      return null;
+      console.error('[SEC] Failed to load CIK mapping:', error)
+      // Fall back to static cache
+      this.loadFallbackCache()
     }
   }
 
   /**
-   * Get company overview and recent filings
+   * Load CIK mappings from fallback cache
    */
-  static async getCompanyOverview(ticker: string): Promise<CompanyOverview | null> {
-    const cacheKey = `${this.CACHE_PREFIX}overview:${ticker}`;
-    
-    // Check cache first
+  private static loadFallbackCache(): void {
     try {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return cached as CompanyOverview;
-      }
+      const fallbackMappings = fallbackCIKCache.mappings as Record<string, string>
+      Object.entries(fallbackMappings).forEach(([ticker, cik]) => {
+        this.cikCache.set(ticker, cik)
+      })
+      this.cikMappingLoaded = true
+      console.log(`[SEC] Loaded ${this.cikCache.size} CIK mappings from fallback cache`)
     } catch (error) {
-      console.error('Cache read error:', error);
+      console.error('[SEC] Failed to load fallback cache:', error)
     }
+  }
 
-    const cik = await this.getCIKFromTicker(ticker);
-    if (!cik) {
-      console.error(`CIK not found for ticker: ${ticker}`);
-      return null;
-    }
-
+  /**
+   * Get CIK from stock symbol
+   */
+  static async getCIK(symbol: string): Promise<string | null> {
     try {
-      const response = await fetch(`${this.SEC_SUBMISSIONS_URL}/CIK${cik}.json`, {
-        headers: this.headers,
-      });
+      await this.loadCIKMapping()
+    } catch (error) {
+      console.error('[SEC] Error loading CIK mapping:', error)
+    }
+    
+    const cik = this.cikCache.get(symbol.toUpperCase())
+    return cik || null
+  }
+
+  /**
+   * Fetch financial statements from SEC EDGAR
+   */
+  static async getFinancialStatements(symbol: string): Promise<FinancialStatements | null> {
+    try {
+      // Get CIK for symbol
+      const cik = await this.getCIK(symbol)
+      if (!cik) {
+        console.warn(`[SEC] No CIK found for symbol: ${symbol}`)
+        return null
+      }
+
+      console.log(`[SEC] Fetching financial data for ${symbol} (CIK: ${cik})`)
+
+      // Fetch company facts from SEC
+      const response = await fetch(
+        `${this.BASE_URL}/api/xbrl/companyfacts/CIK${cik}.json`,
+        { headers: { 'User-Agent': this.USER_AGENT } }
+      )
 
       if (!response.ok) {
-        throw new Error(`SEC API error: ${response.statusText}`);
+        throw new Error(`SEC API error: ${response.status}`)
       }
 
-      const data = await response.json();
-      
-      const overview: CompanyOverview = {
-        cik: data.cik,
-        ticker: ticker.toUpperCase(),
-        name: data.name,
-        sic: data.sic,
-        sicDescription: data.sicDescription,
-        category: data.category,
-        fiscalYearEnd: data.fiscalYearEnd,
-        stateOfIncorporation: data.stateOfIncorp,
-        businessAddress: {
-          street1: data.addresses?.business?.street1 || '',
-          street2: data.addresses?.business?.street2,
-          city: data.addresses?.business?.city || '',
-          stateOrCountry: data.addresses?.business?.stateOrCountry || '',
-          zipCode: data.addresses?.business?.zipCode || '',
+      const data = await response.json()
+      const facts = data.facts['us-gaap'] as Record<string, SECFact>
+
+      // Process financial statements
+      const incomeStatements = SECEdgarHelpers.extractIncomeStatements(facts)
+      const balanceSheets = SECEdgarHelpers.extractBalanceSheets(facts)
+      const cashFlowStatements = SECEdgarHelpers.extractCashFlowStatements(facts)
+
+      // Calculate TTM
+      const ttmIncome = SECEdgarHelpers.calculateTTMIncomeStatement(incomeStatements.quarterly)
+      const ttmCashFlow = SECEdgarHelpers.calculateTTMCashFlow(cashFlowStatements.quarterly)
+
+      return {
+        symbol,
+        incomeStatements: {
+          annual: incomeStatements.annual,
+          quarterly: incomeStatements.quarterly,
+          ttm: ttmIncome || undefined
         },
-        phone: data.phone,
-        ein: data.ein,
-        entityType: data.entityType,
-        insiderTransactionForOwnerExists: data.insiderTransactionForOwnerExists || false,
-        insiderTransactionForIssuerExists: data.insiderTransactionForIssuerExists || false,
-        tickers: data.tickers || [ticker.toUpperCase()],
-        exchanges: data.exchanges || [],
-        formerNames: data.formerNames || [],
-      };
-
-      // Cache the result
-      try {
-        await redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(overview));
-      } catch (error) {
-        console.error('Cache write error:', error);
+        balanceSheets: {
+          annual: balanceSheets.annual,
+          quarterly: balanceSheets.quarterly
+        },
+        cashFlowStatements: {
+          annual: cashFlowStatements.annual,
+          quarterly: cashFlowStatements.quarterly,
+          ttm: ttmCashFlow || undefined
+        },
+        updatedAt: new Date()
       }
-
-      return overview;
     } catch (error) {
-      console.error('Error fetching company overview:', error);
-      return null;
+      console.error(`[SEC] Failed to fetch financial statements for ${symbol}:`, error)
+      return null
     }
   }
 
-  /**
-   * Get recent 10-K and 10-Q filings
-   */
-  static async getRecentFilings(
-    ticker: string,
-    filingTypes: string[] = ['10-K', '10-Q']
-  ): Promise<CompanyFiling[]> {
-    const cacheKey = `${this.CACHE_PREFIX}filings:${ticker}:${filingTypes.join(',')}`;
-    
-    // Check cache first
-    try {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return cached as CompanyFiling[];
-      }
-    } catch (error) {
-      console.error('Cache read error:', error);
-    }
-
-    const cik = await this.getCIKFromTicker(ticker);
-    if (!cik) {
-      return [];
-    }
-
-    try {
-      const response = await fetch(`${this.SEC_SUBMISSIONS_URL}/CIK${cik}.json`, {
-        headers: this.headers,
-      });
-
-      if (!response.ok) {
-        throw new Error(`SEC API error: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      
-      const filings: CompanyFiling[] = [];
-      const recent = data.filings?.recent;
-      
-      if (recent) {
-        for (let i = 0; i < recent.form.length && filings.length < 10; i++) {
-          if (filingTypes.includes(recent.form[i])) {
-            const filing: CompanyFiling = {
-              cik: cik,
-              ticker: ticker.toUpperCase(),
-              companyName: data.name,
-              filingType: recent.form[i],
-              filingDate: recent.filingDate[i],
-              filingUrl: `https://www.sec.gov/Archives/edgar/data/${cik}/${recent.accessionNumber[i].replace(/-/g, '')}/${recent.primaryDocument[i]}`,
-            };
-            filings.push(filing);
-          }
-        }
-      }
-
-      // Cache the result
-      try {
-        await redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(filings));
-      } catch (error) {
-        console.error('Cache write error:', error);
-      }
-
-      return filings;
-    } catch (error) {
-      console.error('Error fetching filings:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Extract business description from latest 10-K
-   * Note: This is simplified - full implementation would parse the actual filing
-   */
-  static async getBusinessDescription(ticker: string): Promise<string | null> {
-    const cacheKey = `${this.CACHE_PREFIX}business:${ticker}`;
-    
-    // Check cache first
-    try {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return cached as string;
-      }
-    } catch (error) {
-      console.error('Cache read error:', error);
-    }
-
-    const filings = await this.getRecentFilings(ticker, ['10-K']);
-    if (filings.length === 0) {
-      return null;
-    }
-
-    // For now, return a placeholder description
-    // In production, this would fetch and parse the actual 10-K filing
-    const description = `${filings[0].companyName} operates in the ${ticker} sector. For detailed business information, please refer to the company's latest 10-K filing dated ${filings[0].filingDate}.`;
-
-    // Cache the result
-    try {
-      await redis.setex(cacheKey, this.CACHE_TTL, description);
-    } catch (error) {
-      console.error('Cache write error:', error);
-    }
-
-    return description;
-  }
-
-  /**
-   * Get competitive landscape information
-   * Simplified version - would normally parse actual filings
-   */
-  static async getCompetitiveInfo(ticker: string): Promise<{
-    competitors: string[];
-    strengths: string[];
-    risks: string[];
-  }> {
-    const cacheKey = `${this.CACHE_PREFIX}competitive:${ticker}`;
-    
-    // Check cache first
-    try {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return cached as any;
-      }
-    } catch (error) {
-      console.error('Cache read error:', error);
-    }
-
-    // Industry-based competitor mapping (simplified)
-    const competitorMap: { [key: string]: string[] } = {
-      'AAPL': ['MSFT', 'GOOGL', 'SAMSUNG'],
-      'MSFT': ['AAPL', 'GOOGL', 'AMZN', 'ORCL'],
-      'GOOGL': ['MSFT', 'META', 'AMZN', 'AAPL'],
-      'AMZN': ['MSFT', 'GOOGL', 'WMT', 'BABA'],
-      'TSLA': ['GM', 'F', 'RIVN', 'NIO', 'LCID'],
-      'NVDA': ['AMD', 'INTC', 'QCOM'],
-      'META': ['GOOGL', 'SNAP', 'TWTR', 'PINS'],
-      'NFLX': ['DIS', 'AMZN', 'AAPL', 'WBD'],
-      'JPM': ['BAC', 'WFC', 'C', 'GS'],
-      'V': ['MA', 'AXP', 'PYPL', 'SQ'],
-    };
-
-    const info = {
-      competitors: competitorMap[ticker.toUpperCase()] || [],
-      strengths: [
-        'Strong market position',
-        'Established brand recognition',
-        'Diversified revenue streams',
-      ],
-      risks: [
-        'Market competition',
-        'Regulatory changes',
-        'Economic uncertainty',
-      ],
-    };
-
-    // Cache the result
-    try {
-      await redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(info));
-    } catch (error) {
-      console.error('Cache write error:', error);
-    }
-
-    return info;
-  }
-
-  /**
-   * Clear cache for a specific ticker
-   */
-  static async clearCache(ticker: string): Promise<void> {
-    const patterns = [
-      `${this.CACHE_PREFIX}overview:${ticker}`,
-      `${this.CACHE_PREFIX}filings:${ticker}:*`,
-      `${this.CACHE_PREFIX}business:${ticker}`,
-      `${this.CACHE_PREFIX}competitive:${ticker}`,
-      `cik_mapping:${ticker.toUpperCase()}`,
-    ];
-
-    for (const pattern of patterns) {
-      try {
-        await redis.del(pattern);
-      } catch (error) {
-        console.error('Cache clear error:', error);
-      }
-    }
-  }
 }

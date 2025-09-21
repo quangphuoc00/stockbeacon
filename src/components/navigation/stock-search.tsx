@@ -83,19 +83,26 @@ export function StockSearch() {
     setLoading(true)
     try {
       const response = await fetch(`/api/stocks/search?q=${encodeURIComponent(query)}`)
-      if (response.ok) {
-        const data = await response.json()
-        setSuggestions(data.data || [])
-        
-        // Prefetch the top 3 results for faster navigation
-        if (data.data && data.data.length > 0) {
-          data.data.slice(0, 3).forEach((stock: StockSuggestion) => {
-            router.prefetch(`/stocks/${stock.symbol}`)
-          })
-        }
+      
+      if (!response.ok) {
+        // Handle error response
+        console.error(`Search API error: ${response.status} ${response.statusText}`)
+        setSuggestions([])
+        return
+      }
+      
+      const data = await response.json()
+      setSuggestions(data.data || [])
+      
+      // Prefetch the top 3 results for faster navigation
+      if (data.data && data.data.length > 0) {
+        data.data.slice(0, 3).forEach((stock: StockSuggestion) => {
+          router.prefetch(`/stocks/${stock.symbol}`)
+        })
       }
     } catch (error) {
       console.error('Search error:', error)
+      setSuggestions([])
     } finally {
       setLoading(false)
     }

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Analysis Flags Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .symbol {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .loading { background: #e5e5e5; color: #666; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .flags-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .flag-section h3 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .red-section { border-left: 4px solid #dc3545; padding-left: 16px; }
+        .green-section { border-left: 4px solid #28a745; padding-left: 16px; }
+        .flag-item {
+            background: #f8f9fa;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+        }
+        .flag-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .flag-severity {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            background: #dc3545;
+            color: white;
+            margin-right: 8px;
+        }
+        .flag-strength {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            background: #28a745;
+            color: white;
+            margin-right: 8px;
+        }
+        .test-summary {
+            background: #007bff;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .error-message {
+            color: #dc3545;
+            margin-top: 10px;
+        }
+        .metric {
+            display: inline-block;
+            margin-right: 20px;
+            font-size: 14px;
+        }
+        .metric-value {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-summary">
+        <h1>Financial Analysis Flags Display Test</h1>
+        <p>This page tests whether all flags are being displayed (not limited to 3)</p>
+        <div id="overall-status"></div>
+    </div>
+
+    <div id="test-results"></div>
+
+    <script>
+        const TEST_SYMBOLS = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN'];
+        
+        async function testStock(symbol) {
+            const container = document.getElementById('test-results');
+            const card = document.createElement('div');
+            card.className = 'test-card';
+            card.innerHTML = `
+                <div class="symbol">${symbol}</div>
+                <div class="status loading">Loading...</div>
+                <div class="content"></div>
+            `;
+            container.appendChild(card);
+            
+            try {
+                const response = await fetch(`/api/stocks/${symbol}/analysis`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to fetch analysis');
+                }
+                
+                const statusEl = card.querySelector('.status');
+                const contentEl = card.querySelector('.content');
+                
+                // Check if all flags are present
+                const allRedFlagsPresent = data.redFlags && data.redFlags.length === data.redFlagsCount;
+                const allGreenFlagsPresent = data.greenFlags && data.greenFlags.length === data.greenFlagsCount;
+                const allFlagsPresent = allRedFlagsPresent && allGreenFlagsPresent;
+                
+                if (allFlagsPresent) {
+                    statusEl.className = 'status success';
+                    statusEl.textContent = '✓ All flags displayed';
+                } else {
+                    statusEl.className = 'status error';
+                    statusEl.textContent = '✗ Limited flags';
+                }
+                
+                // Display metrics
+                const metrics = `
+                    <div style="margin: 10px 0;">
+                        <span class="metric">Health Score: <span class="metric-value">${data.healthScore.overall}/100</span></span>
+                        <span class="metric">Grade: <span class="metric-value">${data.healthScore.grade}</span></span>
+                        <span class="metric">Red Flags: <span class="metric-value">${data.redFlagsCount}</span></span>
+                        <span class="metric">Green Flags: <span class="metric-value">${data.greenFlagsCount}</span></span>
+                    </div>
+                `;
+                
+                // Display flags
+                let flagsHtml = '<div class="flags-container">';
+                
+                // Red Flags
+                flagsHtml += '<div class="flag-section red-section">';
+                flagsHtml += `<h3>🚨 Red Flags (${data.redFlags ? data.redFlags.length : 0}/${data.redFlagsCount})</h3>`;
+                if (data.redFlags && data.redFlags.length > 0) {
+                    data.redFlags.forEach((flag, idx) => {
+                        flagsHtml += `
+                            <div class="flag-item">
+                                <div class="flag-title">
+                                    <span class="flag-severity">${flag.severity}</span>
+                                    ${idx + 1}. ${flag.title}
+                                </div>
+                                <div style="font-size: 13px; color: #666; margin-top: 4px;">
+                                    ${flag.explanation}
+                                </div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    flagsHtml += '<p style="color: #666;">No red flags or data not loaded</p>';
+                }
+                flagsHtml += '</div>';
+                
+                // Green Flags
+                flagsHtml += '<div class="flag-section green-section">';
+                flagsHtml += `<h3>✅ Green Flags (${data.greenFlags ? data.greenFlags.length : 0}/${data.greenFlagsCount})</h3>`;
+                if (data.greenFlags && data.greenFlags.length > 0) {
+                    data.greenFlags.forEach((flag, idx) => {
+                        flagsHtml += `
+                            <div class="flag-item">
+                                <div class="flag-title">
+                                    <span class="flag-strength">${flag.strength}</span>
+                                    ${idx + 1}. ${flag.title}
+                                </div>
+                                <div style="font-size: 13px; color: #666; margin-top: 4px;">
+                                    ${flag.explanation}
+                                </div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    flagsHtml += '<p style="color: #666;">No green flags or data not loaded</p>';
+                }
+                flagsHtml += '</div>';
+                flagsHtml += '</div>';
+                
+                contentEl.innerHTML = metrics + flagsHtml;
+                
+                // Check for old API response format
+                if (!allFlagsPresent) {
+                    contentEl.innerHTML += `
+                        <div class="error-message">
+                            ⚠️ API returned limited flags. Expected ${data.redFlagsCount} red and ${data.greenFlagsCount} green flags,
+                            but got ${data.redFlags ? data.redFlags.length : 0} red and ${data.greenFlags ? data.greenFlags.length : 0} green.
+                        </div>
+                    `;
+                }
+                
+                return allFlagsPresent;
+                
+            } catch (error) {
+                const statusEl = card.querySelector('.status');
+                const contentEl = card.querySelector('.content');
+                
+                statusEl.className = 'status error';
+                statusEl.textContent = '✗ Error';
+                contentEl.innerHTML = `<div class="error-message">${error.message}</div>`;
+                
+                return false;
+            }
+        }
+        
+        async function runTests() {
+            const results = await Promise.all(TEST_SYMBOLS.map(testStock));
+            const passedCount = results.filter(r => r).length;
+            const totalCount = results.length;
+            
+            const summaryEl = document.getElementById('overall-status');
+            summaryEl.innerHTML = `
+                <h2>Test Results: ${passedCount}/${totalCount} Passed</h2>
+                <p>${passedCount === totalCount ? '✅ All stocks display complete flags!' : '⚠️ Some stocks still show limited flags'}</p>
+            `;
+        }
+        
+        // Run tests when page loads
+        runTests();
+    </script>
+</body>
+</html>

@@ -58,18 +58,45 @@ export function NewsFeed({ symbol }: NewsFeedProps) {
       setLoading(true)
       setError(null)
       
-      const response = await fetch(`/api/stocks/${symbol}/news`)
-      const data = await response.json()
+      // First try to load today's news or latest day with news
+      const todayResponse = await fetch(`/api/stocks/${symbol}/news?todayOnly=true&limit=50`)
+      const todayData = await todayResponse.json()
       
-      if (data.success && data.news) {
+      if (todayData.success && todayData.news) {
         // Convert date strings back to Date objects
-        const newsWithDates = data.news.map((item: any) => ({
+        let newsWithDates = todayData.news.map((item: any) => ({
           ...item,
           providerPublishTime: new Date(item.providerPublishTime)
         }))
+        
+        // If we have less than 10 articles from today, fetch more recent articles
+        if (newsWithDates.length < 10) {
+          const moreResponse = await fetch(`/api/stocks/${symbol}/news?limit=${Math.max(10, newsWithDates.length + 5)}`)
+          const moreData = await moreResponse.json()
+          
+          if (moreData.success && moreData.news) {
+            const additionalNews = moreData.news.map((item: any) => ({
+              ...item,
+              providerPublishTime: new Date(item.providerPublishTime)
+            }))
+            
+            // Merge and deduplicate by URL
+            const allNews = [...newsWithDates]
+            const existingUrls = new Set(newsWithDates.map((n: NewsItem) => n.link))
+            
+            for (const item of additionalNews) {
+              if (!existingUrls.has(item.link)) {
+                allNews.push(item)
+              }
+            }
+            
+            newsWithDates = allNews
+          }
+        }
+        
         setNews(newsWithDates)
       } else {
-        setError(data.error || 'Failed to load news')
+        setError(todayData.error || 'Failed to load news')
       }
     } catch (err) {
       console.error('Error loading news:', err)
@@ -150,7 +177,17 @@ export function NewsFeed({ symbol }: NewsFeedProps) {
           Latest News & Events
         </CardTitle>
         <CardDescription>
-          {news.length} recent article{news.length !== 1 ? 's' : ''} for {symbol}
+          {news.length >= 10 ? (
+            news.filter(item => {
+              const today = new Date()
+              const newsDate = new Date(item.providerPublishTime)
+              return newsDate.toDateString() === today.toDateString()
+            }).length > 0 
+              ? `Today's news and recent articles for ${symbol}` 
+              : `${news.length} recent articles for ${symbol}`
+          ) : (
+            `${news.length} recent article${news.length !== 1 ? 's' : ''} for ${symbol}`
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -205,7 +242,7 @@ export function NewsFeed({ symbol }: NewsFeedProps) {
                     </div>
                     
                     {item.summary && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                      <p className="text-sm text-muted-foreground line-clamp-3 mb-2">
                         {item.summary}
                       </p>
                     )}

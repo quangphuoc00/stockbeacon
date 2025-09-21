@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Statements UI Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Financial Statements UI Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Controls</h2>
+        <button onclick="testAPI('AAPL')">Test AAPL API</button>
+        <button onclick="testAPI('MSFT')">Test MSFT API</button>
+        <button onclick="testAPI('GOOGL')">Test GOOGL API</button>
+        <button onclick="openStockPage('AAPL')">Open AAPL Page</button>
+        <button onclick="openStockPage('MSFT')">Open MSFT Page</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>API Test Results</h2>
+        <div id="api-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Live Preview</h2>
+        <p class="info">Navigate to a stock page and click on the Financials tab to see the financial statements.</p>
+        <iframe id="preview" src="http://localhost:3000/stocks/AAPL"></iframe>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Checklist</h2>
+        <ul>
+            <li>✅ Financial Statements API endpoint created</li>
+            <li>✅ Data fetching from Yahoo Finance implemented</li>
+            <li>✅ TTM calculations for Income Statement and Cash Flow</li>
+            <li>✅ FinancialStatementTable component created</li>
+            <li>✅ Annual/Quarterly toggle functionality</li>
+            <li>✅ Tab switching between statements</li>
+            <li>✅ Number formatting (K, M, B, T)</li>
+            <li>✅ Year-over-year growth indicators</li>
+            <li>✅ Loading states</li>
+            <li>✅ Empty state handling</li>
+            <li>✅ Responsive table design</li>
+            <li>✅ Integration with stock details page</li>
+        </ul>
+    </div>
+    
+    <script>
+        async function testAPI(symbol) {
+            const resultsDiv = document.getElementById('api-results');
+            resultsDiv.innerHTML = `<div class="info">Testing ${symbol}...</div>`;
+            
+            try {
+                const response = await fetch(`http://localhost:3000/api/stocks/${symbol}/financial-statements`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    let html = `<div class="success">✅ API call successful for ${symbol}</div>`;
+                    
+                    // Check data completeness
+                    const incomeCount = data.incomeStatements?.annual?.length || 0;
+                    const balanceCount = data.balanceSheets?.annual?.length || 0;
+                    const cashFlowCount = data.cashFlowStatements?.annual?.length || 0;
+                    
+                    html += `<div class="info">
+                        Income Statements: ${incomeCount} annual periods<br>
+                        Balance Sheets: ${balanceCount} annual periods<br>
+                        Cash Flow Statements: ${cashFlowCount} annual periods
+                    </div>`;
+                    
+                    // Show sample data
+                    if (data.incomeStatements?.annual?.[0]) {
+                        const latest = data.incomeStatements.annual[0];
+                        const revenue = latest.revenue ? (latest.revenue / 1e9).toFixed(2) : 'N/A';
+                        const netIncome = latest.netIncome ? (latest.netIncome / 1e9).toFixed(2) : 'N/A';
+                        
+                        html += `<div class="info">
+                            Latest Annual Data:<br>
+                            Revenue: $${revenue}B<br>
+                            Net Income: $${netIncome}B
+                        </div>`;
+                    }
+                    
+                    // Show raw response sample
+                    html += `<details>
+                        <summary>View Raw Response (sample)</summary>
+                        <pre>${JSON.stringify(data, null, 2).substring(0, 1000)}...</pre>
+                    </details>`;
+                    
+                    resultsDiv.innerHTML = html;
+                } else {
+                    resultsDiv.innerHTML = `<div class="error">❌ API error: ${data.error || 'Unknown error'}</div>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ Network error: ${error.message}</div>`;
+            }
+        }
+        
+        function openStockPage(symbol) {
+            document.getElementById('preview').src = `http://localhost:3000/stocks/${symbol}`;
+        }
+        
+        // Test on load
+        window.onload = () => {
+            testAPI('AAPL');
+        };
+    </script>
+</body>
+</html>

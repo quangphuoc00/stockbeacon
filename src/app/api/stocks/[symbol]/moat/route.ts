@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { AIMoatAnalysisService } from '@/lib/services/ai-moat.service';
-import { SECEdgarService } from '@/lib/services/sec-edgar.service';
 import { YahooFinanceService } from '@/lib/services/yahoo-finance.service';
 
 export async function GET(
@@ -27,9 +26,10 @@ export async function GET(
     const forceRefresh = request.nextUrl.searchParams.get('refresh') === 'true';
 
     // Fetch company data from Yahoo Finance (using static methods)
-    const [quote, financials] = await Promise.all([
+    const [quote, financials, companyProfile] = await Promise.all([
       YahooFinanceService.getQuote(symbol),
       YahooFinanceService.getFinancials(symbol),
+      YahooFinanceService.getCompanyProfile(symbol),
     ]);
 
     if (!quote) {
@@ -39,23 +39,20 @@ export async function GET(
       );
     }
 
-    // Get competitive information from SEC
-    const competitiveInfo = await SECEdgarService.getCompetitiveInfo(symbol);
-
     // Prepare company data for AI analysis
     const companyData = {
       symbol,
       companyName: quote.name || symbol,
-      sector: quote.sector || 'Unknown',
-      industry: quote.industry || 'Unknown',
-      businessSummary: `${quote.name} is a ${quote.sector || 'company'} in the ${quote.industry || 'industry'} sector with a market cap of $${(quote.marketCap / 1e9).toFixed(1)}B.`,
+      sector: quote.sector || companyProfile?.sector || 'Unknown',
+      industry: quote.industry || companyProfile?.industry || 'Unknown',
+      businessSummary: companyProfile?.businessSummary || `${quote.name} is a ${quote.sector || 'company'} in the ${quote.industry || 'industry'} sector with a market cap of $${(quote.marketCap / 1e9).toFixed(1)}B.`,
       grossMargins: financials?.grossMargin ?? undefined,
       operatingMargins: financials?.operatingMargin ?? undefined,
       profitMargins: financials?.profitMargin ?? undefined,
       marketCap: quote.marketCap,
-      employees: undefined, // Not available from current data
+      employees: companyProfile?.fullTimeEmployees || undefined,
       revenueGrowth: financials?.revenueGrowth ?? undefined,
-      competitorsList: competitiveInfo.competitors,
+      competitorsList: [], // Yahoo Finance doesn't provide direct competitor data
     };
 
     // Get AI moat analysis
@@ -65,11 +62,21 @@ export async function GET(
       forceRefresh
     );
 
-    // Get SEC filings for additional context
-    const [overview, recentFilings] = await Promise.all([
-      SECEdgarService.getCompanyOverview(symbol),
-      SECEdgarService.getRecentFilings(symbol),
-    ]);
+    // Prepare company overview data from Yahoo Finance
+    const overview = companyProfile ? {
+      name: companyData.companyName,
+      description: companyProfile.businessSummary,
+      sector: companyProfile.sector,
+      industry: companyProfile.industry,
+      website: companyProfile.website,
+      address: companyProfile.address ? `${companyProfile.address}, ${companyProfile.city}, ${companyProfile.state} ${companyProfile.zip}` : null,
+      phone: companyProfile.phone,
+      employees: companyProfile.fullTimeEmployees,
+      officers: companyProfile.companyOfficers,
+    } : null;
+    
+    // Note: Yahoo Finance doesn't provide SEC filings directly
+    const recentFilings: any[] = [];
 
     return NextResponse.json({
       moatAnalysis,
@@ -81,9 +88,20 @@ export async function GET(
         name: companyData.companyName,
         sector: companyData.sector,
         industry: companyData.industry,
+        businessSummary: companyData.businessSummary,
         marketCap: companyData.marketCap,
         employees: companyData.employees,
         competitors: companyData.competitorsList,
+        website: companyProfile?.website || null,
+        address: companyProfile?.address ? {
+          street: companyProfile.address,
+          city: companyProfile.city,
+          state: companyProfile.state,
+          zip: companyProfile.zip,
+          country: companyProfile.country,
+        } : null,
+        phone: companyProfile?.phone || null,
+        officers: companyProfile?.companyOfficers || [],
       },
     });
   } catch (error) {

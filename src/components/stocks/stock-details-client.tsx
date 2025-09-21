@@ -38,12 +38,17 @@ import { formatCurrency, formatPercentage, getScoreColor, getScoreBgColor, forma
 import Link from 'next/link'
 import { useStockSubscription } from '@/lib/hooks'
 import { NewsFeed } from '@/components/stocks/news-feed'
+import { AINewsSummary } from '@/components/stocks/ai-news-summary'
+import { NewsEducationGuide } from '@/components/stocks/news-education-guide'
 import { ValuationChart } from '@/components/stocks/valuation-chart'
 import { ChartWrapper } from '@/components/stocks/chart-wrapper'
 import { type ComprehensiveValuation } from '@/lib/services/valuation.service'
 import { type NewsAnalysis } from '@/lib/services/news-analysis.service'
 import { type MoatAnalysis } from '@/lib/services/ai-moat.service'
 import { CompanyProfileShimmer, MoatAnalysisShimmer } from '@/components/ui/shimmer'
+import { FinancialStatementTable } from '@/components/stocks/financial-statement-table'
+import { FinancialAnalysisDashboard } from '@/components/stocks/financial-analysis-dashboard'
+import { type FinancialStatements } from '@/types/stock'
 
 interface StockDetailsClientProps {
   symbol: string
@@ -64,7 +69,7 @@ export function StockDetailsClient({
   
   const [stockData, setStockData] = useState(initialStockData)
   const [moatAnalysis, setMoatAnalysis] = useState<MoatAnalysis | null>(initialMoatAnalysis)
-  const [loadingMoat, setLoadingMoat] = useState(false) // Don't start loading immediately
+  const [loadingMoat, setLoadingMoat] = useState(false) // Don't auto-start loading
   const [moatError, setMoatError] = useState<string | null>(null)
   const [isWatching, setIsWatching] = useState(false)
   const [shareMessage, setShareMessage] = useState<string | null>(null)
@@ -90,6 +95,9 @@ export function StockDetailsClient({
     earningsGrowth?: number
   }>({})
   const [showManualInputs, setShowManualInputs] = useState(false)
+  const [financialStatements, setFinancialStatements] = useState<FinancialStatements | null>(null)
+  const [loadingFinancialStatements, setLoadingFinancialStatements] = useState(false)
+  const [showFinancialStatements, setShowFinancialStatements] = useState(false)
   
   // Ref to prevent concurrent valuation loads
   const isLoadingValuationRef = useRef(false)
@@ -161,6 +169,7 @@ export function StockDetailsClient({
   // Load company profile when component mounts
   useEffect(() => {
     if (symbol) {
+      console.log(`[StockDetailsClient] Symbol changed to ${symbol}, loading company profile and resetting state`)
       loadCompanyProfile()
       // Clear valuation when symbol changes
       setValuation(null)
@@ -168,6 +177,13 @@ export function StockDetailsClient({
       valuationLoadedForSymbolRef.current = ''
     }
   }, [symbol])
+  
+  // Financial statements now load on demand when user clicks "Show Statements"
+  // useEffect(() => {
+  //   if (selectedTab === 'financials' && !financialStatements && !loadingFinancialStatements) {
+  //     loadFinancialStatements()
+  //   }
+  // }, [selectedTab, symbol])
   
   // No longer needed - moat loads on mount
   // useEffect(() => {
@@ -178,8 +194,11 @@ export function StockDetailsClient({
   
   // Auto-load news analysis when needed
   useEffect(() => {
-    if (selectedTab === 'valuation' && !newsAnalysis && !loadingNewsAnalysis && valuation) {
-      analyzeNews()
+    if ((selectedTab === 'valuation' && valuation) || selectedTab === 'news') {
+      if (!newsAnalysis && !loadingNewsAnalysis) {
+        console.log(`[StockDetailsClient] Auto-loading news analysis for ${symbol} - tab: ${selectedTab}, has valuation: ${!!valuation}`)
+        analyzeNews()
+      }
     }
   }, [selectedTab, valuation]) // Depend on tab and valuation availability
   
@@ -187,49 +206,72 @@ export function StockDetailsClient({
   // Server sync happens on blur via handleRecalculateValuation
 
   const loadMoatAnalysis = async () => {
-    // Prevent double-loading
-    if (loadingMoat) {
-      console.log('[StockDetailsClient] Already loading moat analysis, skipping...')
-      return
-    }
-    
-    console.log(`[StockDetailsClient] Starting moat analysis load for ${symbol}`)
+    const startTime = Date.now()
+    console.log(`[StockDetailsClient] Starting moat analysis load for ${symbol} at ${new Date().toISOString()}`)
     setLoadingMoat(true)
     setMoatError(null)
     
     try {
       // Add timeout to prevent infinite loading
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+      const timeoutId = setTimeout(() => {
+        console.log(`[StockDetailsClient] Moat analysis timeout for ${symbol} after 30 seconds`)
+        controller.abort()
+      }, 30000) // 30 second timeout
       
+      console.log(`[StockDetailsClient] Fetching moat analysis from /api/stocks/${symbol}/moat`)
       const response = await fetch(`/api/stocks/${symbol}/moat`, {
         signal: controller.signal
       })
       clearTimeout(timeoutId)
       
+      const fetchTime = Date.now() - startTime
+      console.log(`[StockDetailsClient] Moat analysis response received for ${symbol} in ${fetchTime}ms - status: ${response.status}`)
+      
       const data = await response.json()
       
       if (response.ok) {
+        console.log(`[StockDetailsClient] Moat analysis data for ${symbol}:`, {
+          hasAnalysis: !!data.moatAnalysis,
+          overallScore: data.moatAnalysis?.overallScore,
+          strengthsCount: data.moatAnalysis?.strengths?.length,
+          risksCount: data.moatAnalysis?.risks?.length,
+          source: data.source || 'unknown'
+        })
         setMoatAnalysis(data.moatAnalysis)
         
         // Recalculate score with the new moat analysis
-        console.log('Moat analysis loaded, recalculating score...')
+        console.log(`[StockDetailsClient] Moat analysis loaded, recalculating score for ${symbol}...`)
+        const scoreStartTime = Date.now()
         const scoreResponse = await fetch(`/api/stocks/${symbol}/recalculate-score`, {
           method: 'POST'
         })
+        const scoreTime = Date.now() - scoreStartTime
         
         if (scoreResponse.ok) {
           const scoreData = await scoreResponse.json()
-          console.log('Score recalculated:', scoreData.score)
+          console.log(`[StockDetailsClient] Score recalculated for ${symbol} in ${scoreTime}ms:`, {
+            oldScore: stockData?.stockbeaconScore?.score,
+            newScore: scoreData.score?.score,
+            oldMoatScore: stockData?.stockbeaconScore?.moatScore,
+            newMoatScore: scoreData.score?.moatScore
+          })
           
           // Update stockData with new score
           setStockData((prevData: any) => ({
             ...prevData,
             stockbeaconScore: scoreData.score
           }))
+        } else {
+          console.error(`[StockDetailsClient] Failed to recalculate score for ${symbol} - status: ${scoreResponse.status}`)
         }
       } else {
         // Handle error response
+        console.error(`[StockDetailsClient] Moat analysis error response for ${symbol}:`, {
+          status: response.status,
+          error: data.error,
+          hasFallback: !!data.fallbackAnalysis
+        })
         if (response.status === 503 && data.fallbackAnalysis) {
           setMoatError('AI moat analysis is temporarily unavailable. Please ensure XAI_API_KEY is configured.')
         } else {
@@ -237,29 +279,52 @@ export function StockDetailsClient({
         }
       }
     } catch (error: any) {
-      console.error('Error loading moat analysis:', error)
+      const fetchTime = Date.now() - startTime
+      console.error(`[StockDetailsClient] Error loading moat analysis for ${symbol} after ${fetchTime}ms:`, error)
+      console.error('[StockDetailsClient] Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      })
       if (error.name === 'AbortError') {
         setMoatError('Request timed out. Please try again.')
       } else {
         setMoatError('Network error: Unable to connect to the moat analysis service')
       }
     } finally {
-      console.log(`[StockDetailsClient] Moat analysis load completed for ${symbol}`)
       setLoadingMoat(false)
+      const totalTime = Date.now() - startTime
+      console.log(`[StockDetailsClient] Moat analysis process completed for ${symbol} in ${totalTime}ms`)
     }
   }
 
   const loadCompanyProfile = async () => {
+    const startTime = Date.now()
+    console.log(`[StockDetailsClient] Starting company profile load for ${symbol}`)
     setLoadingProfile(true)
     
     try {
       const response = await fetch(`/api/stocks/${symbol}/profile`)
+      const fetchTime = Date.now() - startTime
+      
       if (response.ok) {
         const data = await response.json()
+        console.log(`[StockDetailsClient] Company profile loaded for ${symbol} in ${fetchTime}ms`, {
+          hasProfile: !!data,
+          name: data?.businessSummary ? data.businessSummary.substring(0, 50) + '...' : 'N/A',
+          sector: data?.sector,
+          industry: data?.industry,
+          country: data?.country,
+          website: data?.website,
+          employees: data?.fullTimeEmployees
+        })
         setCompanyProfile(data)
+      } else {
+        console.error(`[StockDetailsClient] Failed to load company profile for ${symbol} - status: ${response.status} after ${fetchTime}ms`)
       }
     } catch (error) {
-      console.error('Error loading company profile:', error)
+      const fetchTime = Date.now() - startTime
+      console.error(`[StockDetailsClient] Error loading company profile for ${symbol} after ${fetchTime}ms:`, error)
     } finally {
       setLoadingProfile(false)
     }
@@ -268,8 +333,18 @@ export function StockDetailsClient({
   const loadValuation = async () => {
     // Prevent concurrent loads
     if (isLoadingValuationRef.current) {
+      console.log('[StockDetailsClient] Skipping valuation load - already loading')
       return
     }
+    
+    const startTime = Date.now()
+    console.log(`[StockDetailsClient] Starting valuation load for ${symbol}`)
+    console.log('[StockDetailsClient] Valuation request data:', {
+      hasStockData: !!stockData,
+      hasQuote: !!stockData?.quote,
+      hasFinancials: !!stockData?.financials,
+      manualInputs: Object.keys(manualInputs || {}).length > 0 ? manualInputs : 'none'
+    })
     
     isLoadingValuationRef.current = true
     setLoadingValuation(true)
@@ -286,39 +361,114 @@ export function StockDetailsClient({
         })
       })
       
+      const fetchTime = Date.now() - startTime
+      
       if (response.ok) {
         const data = await response.json()
+        console.log(`[StockDetailsClient] Valuation loaded successfully for ${symbol} in ${fetchTime}ms`, {
+          fairValue: data.valuation?.fairValue,
+          currentPrice: data.valuation?.currentPrice,
+          upside: data.valuation?.upside,
+          confidence: data.valuation?.confidence
+        })
         setValuation(data.valuation)
       } else {
-        console.error('Failed to calculate valuation')
+        console.error(`[StockDetailsClient] Failed to calculate valuation for ${symbol} - status: ${response.status} after ${fetchTime}ms`)
+        const errorText = await response.text()
+        console.error('[StockDetailsClient] Error response:', errorText)
       }
     } catch (error) {
-      console.error('Error loading valuation:', error)
+      const fetchTime = Date.now() - startTime
+      console.error(`[StockDetailsClient] Error loading valuation for ${symbol} after ${fetchTime}ms:`, error)
+      console.error('[StockDetailsClient] Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      })
     } finally {
       setLoadingValuation(false)
       isLoadingValuationRef.current = false
+      console.log(`[StockDetailsClient] Valuation load completed for ${symbol}`)
     }
   }
 
   const analyzeNews = async () => {
+    const startTime = Date.now()
+    console.log(`[StockDetailsClient] Starting news analysis for ${symbol}`)
     setLoadingNewsAnalysis(true)
     
     try {
-      const response = await fetch(`/api/stocks/${symbol}/news?limit=10&analyze=true`)
+      // Get news with analysis - this will fetch the same news that NewsFeed displays
+      // Add timestamp and bypassCache to ensure fresh data
+      const url = `/api/stocks/${symbol}/news?analyze=true&forDisplay=true&bypassCache=true&t=${Date.now()}`
+      console.log('[StockDetailsClient] News analysis URL:', url)
+      
+      const response = await fetch(url)
+      const fetchTime = Date.now() - startTime
+      
       if (response.ok) {
         const data = await response.json()
+        console.log(`[StockDetailsClient] News analysis successful for ${symbol} in ${fetchTime}ms`, {
+          hasAnalysis: !!data.analysis,
+          sentiment: data.analysis?.overall?.sentiment,
+          score: data.analysis?.overall?.score,
+          newsCount: data.articles?.length,
+          analyzedCount: data.analysis?.articles?.length
+        })
         if (data.analysis) {
           setNewsAnalysis(data.analysis)
         }
+      } else {
+        console.error(`[StockDetailsClient] News analysis failed for ${symbol} - status: ${response.status} after ${fetchTime}ms`)
       }
     } catch (error) {
-      console.error('Error analyzing news:', error)
+      const fetchTime = Date.now() - startTime
+      console.error(`[StockDetailsClient] Error analyzing news for ${symbol} after ${fetchTime}ms:`, error)
     } finally {
       setLoadingNewsAnalysis(false)
     }
   }
 
+  const loadFinancialStatements = async () => {
+    if (loadingFinancialStatements) {
+      console.log('[StockDetailsClient] Skipping financial statements load - already loading')
+      return
+    }
+    
+    const startTime = Date.now()
+    console.log(`[StockDetailsClient] Starting financial statements load for ${symbol}`)
+    setLoadingFinancialStatements(true)
+    
+    try {
+      // Add timestamp to bypass cache
+      const response = await fetch(`/api/stocks/${symbol}/financial-statements?t=${Date.now()}`)
+      const fetchTime = Date.now() - startTime
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log(`[StockDetailsClient] Financial statements loaded for ${symbol} in ${fetchTime}ms`, {
+          hasStatements: !!data,
+          hasIncomeStatements: !!data?.incomeStatements,
+          hasBalanceSheets: !!data?.balanceSheets,
+          hasCashFlowStatements: !!data?.cashFlowStatements,
+          quarterlyRevenue: data?.incomeStatements?.quarterly?.[0]?.revenue
+        })
+        setFinancialStatements(data)
+      } else {
+        console.error(`[StockDetailsClient] Failed to load financial statements for ${symbol} - status: ${response.status} after ${fetchTime}ms`)
+      }
+    } catch (error) {
+      const fetchTime = Date.now() - startTime
+      console.error(`[StockDetailsClient] Error loading financial statements for ${symbol} after ${fetchTime}ms:`, error)
+    } finally {
+      setLoadingFinancialStatements(false)
+    }
+  }
+
   const handleWatchlistToggle = async () => {
+    const startTime = Date.now()
+    const action = isWatching ? 'remove from' : 'add to'
+    console.log(`[StockDetailsClient] Attempting to ${action} watchlist: ${symbol}`)
+    
     try {
       const method = isWatching ? 'DELETE' : 'POST'
       const response = await fetch('/api/watchlist', {
@@ -327,11 +477,17 @@ export function StockDetailsClient({
         body: JSON.stringify({ symbol })
       })
       
+      const fetchTime = Date.now() - startTime
+      
       if (response.ok) {
+        console.log(`[StockDetailsClient] Successfully ${action}d watchlist for ${symbol} in ${fetchTime}ms`)
         setIsWatching(!isWatching)
+      } else {
+        console.error(`[StockDetailsClient] Failed to ${action} watchlist for ${symbol} - status: ${response.status} after ${fetchTime}ms`)
       }
     } catch (error) {
-      console.error('Error updating watchlist:', error)
+      const fetchTime = Date.now() - startTime
+      console.error(`[StockDetailsClient] Error updating watchlist for ${symbol} after ${fetchTime}ms:`, error)
     }
   }
 
@@ -834,7 +990,10 @@ export function StockDetailsClient({
 
       {/* Main Content Tabs */}
       <div ref={tabsRef}>
-        <Tabs defaultValue="overview" value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
+        <Tabs defaultValue="overview" value={selectedTab} onValueChange={(value) => {
+          console.log(`[StockDetailsClient] Tab changed from ${selectedTab} to ${value} for ${symbol}`)
+          setSelectedTab(value)
+        }} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="analysis">Moat Analysis</TabsTrigger>
@@ -1186,50 +1345,42 @@ export function StockDetailsClient({
         </TabsContent>
 
         <TabsContent value="financials" className="space-y-4">
-          {financials && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Financial Metrics</CardTitle>
-                <CardDescription>Key financial indicators and ratios</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Revenue (TTM)</p>
-                    <p className="text-lg font-semibold">{formatLargeNumber(financials.revenue || 0)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Gross Profit</p>
-                    <p className="text-lg font-semibold">{formatLargeNumber((financials.revenue || 0) * (financials.grossMargin || 0))}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Operating Margin</p>
-                    <p className="text-lg font-semibold">{formatPercentage(financials.operatingMargin * 100)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Profit Margin</p>
-                    <p className="text-lg font-semibold">{formatPercentage(financials.profitMargin * 100)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">ROE</p>
-                    <p className="text-lg font-semibold">{formatPercentage(financials.returnOnEquity * 100)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">ROA</p>
-                    <p className="text-lg font-semibold">{formatPercentage(financials.returnOnAssets * 100)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Debt/Equity</p>
-                    <p className="text-lg font-semibold">{financials.debtToEquity?.toFixed(2) || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Current Ratio</p>
-                    <p className="text-lg font-semibold">{financials.currentRatio?.toFixed(2) || 'N/A'}</p>
-                  </div>
+          {/* Financial Analysis Dashboard */}
+          <FinancialAnalysisDashboard symbol={symbol} />
+          
+          {/* Financial Statements Toggle */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Financial Statements</CardTitle>
+                  <CardDescription>
+                    Detailed income statement, balance sheet, and cash flow data
+                  </CardDescription>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (!showFinancialStatements && !financialStatements) {
+                      loadFinancialStatements()
+                    }
+                    setShowFinancialStatements(!showFinancialStatements)
+                  }}
+                >
+                  {showFinancialStatements ? 'Hide' : 'Show'} Statements
+                </Button>
+              </div>
+            </CardHeader>
+            {showFinancialStatements && (
+              <CardContent>
+                <FinancialStatementTable 
+                  statements={financialStatements} 
+                  loading={loadingFinancialStatements}
+                />
               </CardContent>
-            </Card>
-          )}
+            )}
+          </Card>
         </TabsContent>
 
         <TabsContent value="technicals" className="space-y-4">
@@ -1301,103 +1452,18 @@ export function StockDetailsClient({
         </TabsContent>
 
         <TabsContent value="news" className="space-y-4">
-          {/* News Summary Section */}
-          {newsAnalysis ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  News Summary
-                </CardTitle>
-                <CardDescription>
-                  AI-powered sentiment analysis
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Overall Summary */}
-                <div className="p-4 bg-muted rounded-lg">
-                  <p className="text-sm leading-relaxed">
-                    {newsAnalysis.summary}
-                  </p>
-                </div>
+          {/* Educational Guide */}
+          <NewsEducationGuide />
+          
+          {/* AI News Summary */}
+          <AINewsSummary 
+            symbol={symbol} 
+            analysis={newsAnalysis} 
+            loading={loadingNewsAnalysis}
+            onRefresh={analyzeNews}
+          />
 
-                {/* Impact Statistics */}
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-2">Sentiment Distribution</p>
-                    <div className="flex gap-2">
-                      {newsAnalysis.sentimentCounts.positive > 0 && (
-                        <Badge className="bg-green-500 text-white text-xs">{newsAnalysis.sentimentCounts.positive} Positive</Badge>
-                      )}
-                      {newsAnalysis.sentimentCounts.neutral > 0 && (
-                        <Badge className="bg-gray-500 text-white text-xs">{newsAnalysis.sentimentCounts.neutral} Neutral</Badge>
-                      )}
-                      {newsAnalysis.sentimentCounts.negative > 0 && (
-                        <Badge className="bg-red-500 text-white text-xs">{newsAnalysis.sentimentCounts.negative} Negative</Badge>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-2">Key Highlights</p>
-                    <div className="flex flex-wrap gap-2">
-                      {newsAnalysis.keyHighlights.map((highlight, i) => (
-                        <Badge key={i} variant="outline" className="text-xs">{highlight}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-2">News Velocity</p>
-                    <Badge 
-                      variant={
-                        newsAnalysis.newsVelocity === 'high' ? 'default' :
-                        newsAnalysis.newsVelocity === 'low' ? 'secondary' :
-                        'outline'
-                      }
-                    >
-                      {newsAnalysis.newsVelocity} activity
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Last Updated */}
-                <div className="pt-4 border-t">
-                  <p className="text-xs text-muted-foreground">
-                    Analysis based on {newsAnalysis.totalArticles} news sources
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ) : loadingNewsAnalysis ? (
-            <Card>
-              <CardContent className="py-8">
-                <div className="flex items-center justify-center">
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="relative w-24 h-24">
-                      <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-primary/20 via-primary/10 to-transparent animate-spin" />
-                      <div className="absolute inset-2 rounded-full bg-gradient-to-bl from-primary/10 via-transparent to-primary/10 animate-spin-reverse" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Activity className="w-10 h-10 text-primary animate-pulse-subtle" />
-                      </div>
-                    </div>
-                    <div className="mt-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <span className="text-sm text-muted-foreground">Analyzing news sentiment</span>
-                        <span className="flex gap-1">
-                          <span className="w-1 h-1 bg-primary rounded-full animate-bounce-dot" style={{ animationDelay: '0ms' }} />
-                          <span className="w-1 h-1 bg-primary rounded-full animate-bounce-dot" style={{ animationDelay: '150ms' }} />
-                          <span className="w-1 h-1 bg-primary rounded-full animate-bounce-dot" style={{ animationDelay: '300ms' }} />
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {/* Original News Feed */}
+          {/* News Feed */}
           <NewsFeed symbol={symbol} />
         </TabsContent>
       </Tabs>

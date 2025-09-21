@@ -7,7 +7,7 @@ if (typeof globalThis.URLSearchParams === 'undefined') {
 }
 
 import yahooFinance from 'yahoo-finance2'
-import { Stock, StockQuote, StockFinancials, StockHistorical } from '@/types/stock'
+import { Stock, StockQuote, StockFinancials, StockHistorical, FinancialStatements, IncomeStatementData, BalanceSheetData, CashFlowStatementData } from '@/types/stock'
 
 // Configure yahoo-finance2
 yahooFinance.setGlobalConfig({
@@ -251,6 +251,321 @@ export class YahooFinanceService {
       console.error(`Error fetching financials for ${symbol}:`, error)
       return null
     }
+  }
+
+  /**
+   * Fetch detailed financial statements
+   */
+  static async getFinancialStatements(symbol: string): Promise<FinancialStatements | null> {
+    try {
+      // Skip cryptocurrencies and certain ETFs
+      const skipPatterns = ['-USD', 'USD-', 'IBIT', 'GBTC', 'ETHE', 'BITO']
+      if (skipPatterns.some(pattern => symbol.includes(pattern))) {
+        console.log(`Skipping financial statements for ${symbol} (cryptocurrency/crypto ETF)`)
+        return null
+      }
+
+      const [incomeStatements, balanceSheets, cashFlowStatements] = await Promise.all([
+        yahooFinance.quoteSummary(symbol, {
+          modules: ['incomeStatementHistory', 'incomeStatementHistoryQuarterly']
+        }).catch(() => null),
+        yahooFinance.quoteSummary(symbol, {
+          modules: ['balanceSheetHistory', 'balanceSheetHistoryQuarterly']
+        }).catch(() => null),
+        yahooFinance.quoteSummary(symbol, {
+          modules: ['cashflowStatementHistory', 'cashflowStatementHistoryQuarterly']
+        }).catch(() => null)
+      ])
+
+      if (!incomeStatements && !balanceSheets && !cashFlowStatements) {
+        console.warn(`No financial statement data available for ${symbol}`)
+        return null
+      }
+
+      // Process Income Statements
+      const annualIncomeStatements = this.processIncomeStatements(
+        incomeStatements?.incomeStatementHistory?.incomeStatementHistory || []
+      )
+      const quarterlyIncomeStatements = this.processIncomeStatements(
+        incomeStatements?.incomeStatementHistoryQuarterly?.incomeStatementHistory || []
+      )
+
+      // Process Balance Sheets
+      const annualBalanceSheets = this.processBalanceSheets(
+        balanceSheets?.balanceSheetHistory?.balanceSheetStatements || []
+      )
+      const quarterlyBalanceSheets = this.processBalanceSheets(
+        balanceSheets?.balanceSheetHistoryQuarterly?.balanceSheetStatements || []
+      )
+
+      // Process Cash Flow Statements
+      const annualCashFlowStatements = this.processCashFlowStatements(
+        cashFlowStatements?.cashflowStatementHistory?.cashflowStatements || []
+      )
+      const quarterlyCashFlowStatements = this.processCashFlowStatements(
+        cashFlowStatements?.cashflowStatementHistoryQuarterly?.cashflowStatements || []
+      )
+
+      // Calculate TTM for income statement and cash flow
+      const ttmIncomeStatement = this.calculateTTMIncomeStatement(quarterlyIncomeStatements)
+      const ttmCashFlowStatement = this.calculateTTMCashFlow(quarterlyCashFlowStatements)
+
+      return {
+        symbol,
+        incomeStatements: {
+          annual: annualIncomeStatements,
+          quarterly: quarterlyIncomeStatements,
+          ttm: ttmIncomeStatement
+        },
+        balanceSheets: {
+          annual: annualBalanceSheets,
+          quarterly: quarterlyBalanceSheets
+        },
+        cashFlowStatements: {
+          annual: annualCashFlowStatements,
+          quarterly: quarterlyCashFlowStatements,
+          ttm: ttmCashFlowStatement
+        },
+        updatedAt: new Date()
+      }
+    } catch (error) {
+      console.error(`Failed to fetch financial statements for ${symbol}:`, error)
+      return null
+    }
+  }
+
+  private static processIncomeStatements(statements: any[]): IncomeStatementData[] {
+    return statements.map(stmt => ({
+      date: stmt.endDate || new Date(),
+      endDate: stmt.endDate || new Date(),
+      fiscalYear: stmt.fiscalYear,
+      fiscalQuarter: stmt.fiscalQuarter,
+      
+      // Revenue
+      revenue: stmt.totalRevenue || null,
+      costOfRevenue: stmt.costOfRevenue || null,
+      grossProfit: stmt.grossProfit || null,
+      
+      // Operating Expenses
+      operatingExpenses: stmt.totalOperatingExpenses || null,
+      sellingGeneralAdministrative: stmt.sellingGeneralAdministrative || null,
+      researchDevelopment: stmt.researchDevelopment || null,
+      otherOperatingExpenses: stmt.otherOperatingExpenses || null,
+      
+      // Operating Income
+      operatingIncome: stmt.operatingIncome || null,
+      
+      // Other Income/Expense
+      interestExpense: stmt.interestExpense || null,
+      interestIncome: stmt.interestIncome || null,
+      otherNonOperatingIncome: stmt.nonOperatingIncomeNetOther || null,
+      
+      // Pre-tax Income
+      incomeBeforeTax: stmt.incomeBeforeTax || null,
+      incomeTaxExpense: stmt.incomeTaxExpense || null,
+      
+      // Net Income
+      netIncome: stmt.netIncome || null,
+      netIncomeFromContinuingOps: stmt.netIncomeFromContinuingOps || null,
+      
+      // Per Share Data
+      eps: stmt.basicEPS || null,
+      epsDiluted: stmt.dilutedEPS || null,
+      
+      // Additional Items
+      ebit: stmt.ebit || null,
+      ebitda: stmt.ebitda || null,
+      exceptionalItems: stmt.extraordinaryItems || null
+    }))
+  }
+
+  private static processBalanceSheets(statements: any[]): BalanceSheetData[] {
+    return statements.map(stmt => ({
+      date: stmt.endDate || new Date(),
+      endDate: stmt.endDate || new Date(),
+      fiscalYear: stmt.fiscalYear,
+      fiscalQuarter: stmt.fiscalQuarter,
+      
+      // Assets
+      totalAssets: stmt.totalAssets || null,
+      currentAssets: stmt.totalCurrentAssets || null,
+      cashAndCashEquivalents: stmt.cash || null,
+      cashAndShortTermInvestments: stmt.cashAndShortTermInvestments || null,
+      netReceivables: stmt.netReceivables || null,
+      inventory: stmt.inventory || null,
+      otherCurrentAssets: stmt.otherCurrentAssets || null,
+      
+      // Non-current Assets
+      propertyPlantEquipment: stmt.propertyPlantEquipment || null,
+      goodwill: stmt.goodWill || null,
+      intangibleAssets: stmt.intangibleAssets || null,
+      longTermInvestments: stmt.longTermInvestments || null,
+      otherNonCurrentAssets: stmt.otherAssets || null,
+      
+      // Liabilities
+      totalLiabilities: stmt.totalLiab || null,
+      currentLiabilities: stmt.totalCurrentLiabilities || null,
+      accountsPayable: stmt.accountsPayable || null,
+      shortTermDebt: stmt.shortTermDebt || null,
+      currentPortionLongTermDebt: stmt.shortLongTermDebt || null,
+      otherCurrentLiabilities: stmt.otherCurrentLiab || null,
+      
+      // Non-current Liabilities
+      longTermDebt: stmt.longTermDebt || null,
+      deferredTaxLiabilities: stmt.deferredLongTermLiab || null,
+      otherNonCurrentLiabilities: stmt.otherLiab || null,
+      
+      // Equity
+      totalShareholderEquity: stmt.totalStockholderEquity || null,
+      commonStock: stmt.commonStock || null,
+      retainedEarnings: stmt.retainedEarnings || null,
+      treasuryStock: stmt.treasuryStock || null,
+      otherShareholderEquity: stmt.capitalSurplus || null,
+      
+      // Shares
+      sharesOutstanding: stmt.commonStockSharesOutstanding || null
+    }))
+  }
+
+  private static processCashFlowStatements(statements: any[]): CashFlowStatementData[] {
+    return statements.map(stmt => ({
+      date: stmt.endDate || new Date(),
+      endDate: stmt.endDate || new Date(),
+      fiscalYear: stmt.fiscalYear,
+      fiscalQuarter: stmt.fiscalQuarter,
+      
+      // Operating Activities
+      operatingCashFlow: stmt.totalCashFromOperatingActivities || null,
+      netIncome: stmt.netIncome || null,
+      depreciation: stmt.depreciation || null,
+      stockBasedCompensation: stmt.stockBasedCompensation || null,
+      changeInWorkingCapital: stmt.changeInWorkingCapital || null,
+      changeInReceivables: stmt.changeInAccountReceivables || null,
+      changeInInventory: stmt.changeInInventory || null,
+      changeInPayables: stmt.changeInAccountPayables || null,
+      otherOperatingActivities: stmt.otherCashflowsFromOperatingActivities || null,
+      
+      // Investing Activities
+      investingCashFlow: stmt.totalCashflowsFromInvestingActivities || null,
+      capitalExpenditures: stmt.capitalExpenditures || null,
+      investments: stmt.investments || null,
+      acquisitionsNet: stmt.otherCashflowsFromInvestingActivities || null,
+      otherInvestingActivities: stmt.otherCashflowsFromInvestingActivities || null,
+      
+      // Financing Activities
+      financingCashFlow: stmt.totalCashFromFinancingActivities || null,
+      dividendsPaid: stmt.dividendsPaid || null,
+      stockRepurchased: stmt.repurchaseOfStock || null,
+      debtRepayment: stmt.repaymentOfDebt || null,
+      debtIssuance: stmt.issuanceOfDebt || null,
+      otherFinancingActivities: stmt.otherCashflowsFromFinancingActivities || null,
+      
+      // Net Change
+      netChangeInCash: stmt.changeInCash || null,
+      freeCashFlow: stmt.freeCashFlow || null,
+      
+      // Beginning/Ending Cash
+      beginCashPosition: stmt.beginPeriodCashFlow || null,
+      endCashPosition: stmt.endPeriodCashFlow || null
+    }))
+  }
+
+  private static calculateTTMIncomeStatement(quarterlyStatements: IncomeStatementData[]): IncomeStatementData | undefined {
+    if (quarterlyStatements.length < 4) return undefined
+    
+    const latestFour = quarterlyStatements.slice(0, 4)
+    const ttm: IncomeStatementData = {
+      date: latestFour[0].date,
+      endDate: latestFour[0].endDate,
+      
+      // Sum up revenue items
+      revenue: this.sumValues(latestFour.map(s => s.revenue)),
+      costOfRevenue: this.sumValues(latestFour.map(s => s.costOfRevenue)),
+      grossProfit: this.sumValues(latestFour.map(s => s.grossProfit)),
+      
+      // Sum up operating expenses
+      operatingExpenses: this.sumValues(latestFour.map(s => s.operatingExpenses)),
+      sellingGeneralAdministrative: this.sumValues(latestFour.map(s => s.sellingGeneralAdministrative)),
+      researchDevelopment: this.sumValues(latestFour.map(s => s.researchDevelopment)),
+      otherOperatingExpenses: this.sumValues(latestFour.map(s => s.otherOperatingExpenses)),
+      
+      // Sum up income items
+      operatingIncome: this.sumValues(latestFour.map(s => s.operatingIncome)),
+      interestExpense: this.sumValues(latestFour.map(s => s.interestExpense)),
+      interestIncome: this.sumValues(latestFour.map(s => s.interestIncome)),
+      otherNonOperatingIncome: this.sumValues(latestFour.map(s => s.otherNonOperatingIncome)),
+      incomeBeforeTax: this.sumValues(latestFour.map(s => s.incomeBeforeTax)),
+      incomeTaxExpense: this.sumValues(latestFour.map(s => s.incomeTaxExpense)),
+      netIncome: this.sumValues(latestFour.map(s => s.netIncome)),
+      netIncomeFromContinuingOps: this.sumValues(latestFour.map(s => s.netIncomeFromContinuingOps)),
+      
+      // Average for per share data
+      eps: this.averageValues(latestFour.map(s => s.eps)),
+      epsDiluted: this.averageValues(latestFour.map(s => s.epsDiluted)),
+      
+      // Sum for additional items
+      ebit: this.sumValues(latestFour.map(s => s.ebit)),
+      ebitda: this.sumValues(latestFour.map(s => s.ebitda)),
+      exceptionalItems: this.sumValues(latestFour.map(s => s.exceptionalItems))
+    }
+    
+    return ttm
+  }
+
+  private static calculateTTMCashFlow(quarterlyStatements: CashFlowStatementData[]): CashFlowStatementData | undefined {
+    if (quarterlyStatements.length < 4) return undefined
+    
+    const latestFour = quarterlyStatements.slice(0, 4)
+    const ttm: CashFlowStatementData = {
+      date: latestFour[0].date,
+      endDate: latestFour[0].endDate,
+      
+      // Sum up operating activities
+      operatingCashFlow: this.sumValues(latestFour.map(s => s.operatingCashFlow)),
+      netIncome: this.sumValues(latestFour.map(s => s.netIncome)),
+      depreciation: this.sumValues(latestFour.map(s => s.depreciation)),
+      stockBasedCompensation: this.sumValues(latestFour.map(s => s.stockBasedCompensation)),
+      changeInWorkingCapital: this.sumValues(latestFour.map(s => s.changeInWorkingCapital)),
+      changeInReceivables: this.sumValues(latestFour.map(s => s.changeInReceivables)),
+      changeInInventory: this.sumValues(latestFour.map(s => s.changeInInventory)),
+      changeInPayables: this.sumValues(latestFour.map(s => s.changeInPayables)),
+      otherOperatingActivities: this.sumValues(latestFour.map(s => s.otherOperatingActivities)),
+      
+      // Sum up investing activities
+      investingCashFlow: this.sumValues(latestFour.map(s => s.investingCashFlow)),
+      capitalExpenditures: this.sumValues(latestFour.map(s => s.capitalExpenditures)),
+      investments: this.sumValues(latestFour.map(s => s.investments)),
+      acquisitionsNet: this.sumValues(latestFour.map(s => s.acquisitionsNet)),
+      otherInvestingActivities: this.sumValues(latestFour.map(s => s.otherInvestingActivities)),
+      
+      // Sum up financing activities
+      financingCashFlow: this.sumValues(latestFour.map(s => s.financingCashFlow)),
+      dividendsPaid: this.sumValues(latestFour.map(s => s.dividendsPaid)),
+      stockRepurchased: this.sumValues(latestFour.map(s => s.stockRepurchased)),
+      debtRepayment: this.sumValues(latestFour.map(s => s.debtRepayment)),
+      debtIssuance: this.sumValues(latestFour.map(s => s.debtIssuance)),
+      otherFinancingActivities: this.sumValues(latestFour.map(s => s.otherFinancingActivities)),
+      
+      // Use latest values for positions
+      netChangeInCash: this.sumValues(latestFour.map(s => s.netChangeInCash)),
+      freeCashFlow: this.sumValues(latestFour.map(s => s.freeCashFlow)),
+      beginCashPosition: latestFour[3].beginCashPosition,
+      endCashPosition: latestFour[0].endCashPosition
+    }
+    
+    return ttm
+  }
+
+  private static sumValues(values: (number | null)[]): number | null {
+    const validValues = values.filter(v => v !== null) as number[]
+    if (validValues.length === 0) return null
+    return validValues.reduce((sum, val) => sum + val, 0)
+  }
+
+  private static averageValues(values: (number | null)[]): number | null {
+    const validValues = values.filter(v => v !== null) as number[]
+    if (validValues.length === 0) return null
+    return validValues.reduce((sum, val) => sum + val, 0) / validValues.length
   }
 
   /**

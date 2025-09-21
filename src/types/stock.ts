@@ -129,3 +129,154 @@ export interface TechnicalIndicators {
   trend: 'bullish' | 'bearish' | 'neutral'
   volatility: number
 }
+
+// Financial Statement Types
+export interface FinancialPeriod {
+  date: Date | string
+  endDate: Date | string
+  fiscalYear?: number
+  fiscalQuarter?: number
+}
+
+export interface IncomeStatementData extends FinancialPeriod {
+  // Revenue
+  revenue: number | null
+  costOfRevenue: number | null
+  grossProfit: number | null
+  
+  // Operating Expenses
+  operatingExpenses: number | null
+  sellingGeneralAdministrative: number | null
+  researchDevelopment: number | null
+  otherOperatingExpenses: number | null
+  
+  // Operating Income
+  operatingIncome: number | null
+  
+  // Other Income/Expense
+  interestExpense: number | null
+  interestIncome: number | null
+  otherNonOperatingIncome: number | null
+  
+  // Pre-tax Income
+  incomeBeforeTax: number | null
+  incomeTaxExpense: number | null
+  
+  // Net Income
+  netIncome: number | null
+  netIncomeFromContinuingOps: number | null
+  
+  // Per Share Data
+  eps: number | null
+  epsDiluted: number | null
+  
+  // Additional Items
+  ebit: number | null
+  ebitda: number | null
+  exceptionalItems: number | null
+}
+
+export interface BalanceSheetData extends FinancialPeriod {
+  // Assets
+  totalAssets: number | null
+  currentAssets: number | null
+  cashAndCashEquivalents: number | null
+  cashAndShortTermInvestments: number | null
+  netReceivables: number | null
+  inventory: number | null
+  otherCurrentAssets: number | null
+  
+  // Non-current Assets
+  propertyPlantEquipment: number | null
+  goodwill: number | null
+  intangibleAssets: number | null
+  longTermInvestments: number | null
+  otherNonCurrentAssets: number | null
+  
+  // Liabilities
+  totalLiabilities: number | null
+  currentLiabilities: number | null
+  accountsPayable: number | null
+  shortTermDebt: number | null
+  currentPortionLongTermDebt: number | null
+  otherCurrentLiabilities: number | null
+  
+  // Non-current Liabilities
+  longTermDebt: number | null
+  deferredTaxLiabilities: number | null
+  otherNonCurrentLiabilities: number | null
+  
+  // Equity
+  totalShareholderEquity: number | null
+  commonStock: number | null
+  retainedEarnings: number | null
+  treasuryStock: number | null
+  otherShareholderEquity: number | null
+  minorityInterest: number | null
+  
+  // Shares
+  sharesOutstanding: number | null
+  sharesOutstandingDiluted: number | null
+  preferredSharesOutstanding: number | null
+}
+
+export interface CashFlowStatementData extends FinancialPeriod {
+  // Operating Activities
+  operatingCashFlow: number | null
+  netIncome: number | null
+  depreciation: number | null
+  stockBasedCompensation: number | null
+  deferredIncomeTaxes: number | null
+  changeInWorkingCapital: number | null
+  changeInReceivables: number | null
+  changeInInventory: number | null
+  changeInPayables: number | null
+  otherOperatingActivities: number | null
+  
+  // Investing Activities
+  investingCashFlow: number | null
+  capitalExpenditures: number | null
+  investments: number | null
+  acquisitionsNet: number | null
+  otherInvestingActivities: number | null
+  
+  // Financing Activities
+  financingCashFlow: number | null
+  dividendsPaid: number | null
+  stockRepurchased: number | null
+  debtRepayment: number | null
+  debtIssuance: number | null
+  otherFinancingActivities: number | null
+  
+  // Net Change
+  netChangeInCash: number | null
+  foreignCurrencyEffect: number | null
+  freeCashFlow: number | null
+  
+  // Beginning/Ending Cash
+  beginCashPosition: number | null
+  endCashPosition: number | null
+  
+  // Supplemental
+  cashInterestPaid: number | null
+  cashTaxesPaid: number | null
+}
+
+export interface FinancialStatements {
+  symbol: string
+  incomeStatements: {
+    annual: IncomeStatementData[]
+    quarterly: IncomeStatementData[]
+    ttm?: IncomeStatementData
+  }
+  balanceSheets: {
+    annual: BalanceSheetData[]
+    quarterly: BalanceSheetData[]
+  }
+  cashFlowStatements: {
+    annual: CashFlowStatementData[]
+    quarterly: CashFlowStatementData[]
+    ttm?: CashFlowStatementData
+  }
+  updatedAt: Date
+}

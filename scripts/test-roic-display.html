@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROIC Display Fix</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; 
+            padding: 20px; 
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 { color: #1a1a1a; margin-bottom: 30px; }
+        
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 30px 0;
+        }
+        
+        .card {
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid;
+        }
+        
+        .before {
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+        
+        .after {
+            border-color: #10b981;
+            background: #f0fdf4;
+        }
+        
+        .flag-card {
+            padding: 12px;
+            border-radius: 6px;
+            background: #f0fdf4;
+            border: 1px solid #86efac;
+            margin-top: 15px;
+        }
+        
+        .flag-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .flag-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .badge {
+            background: #059669;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .metrics {
+            font-size: 12px;
+            color: #333;
+            font-weight: 500;
+            margin: 6px 0;
+        }
+        
+        .explanation {
+            font-size: 12px;
+            color: #666;
+            margin-top: 8px;
+        }
+        
+        .fix-details {
+            background: #e0f2fe;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 30px;
+            border: 1px solid #0284c7;
+        }
+        
+        .code {
+            font-family: 'Monaco', 'Consolas', monospace;
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✅ ROIC Display Fix</h1>
+        
+        <div class="comparison">
+            <div class="card before">
+                <h3>❌ Before (Missing ROIC Value)</h3>
+                <div class="flag-card">
+                    <div class="flag-header">
+                        <div class="flag-title">
+                            <span class="badge">EXCEPTIONAL</span>
+                            <span style="font-weight: 600;">Superior Return on Invested Capital</span>
+                        </div>
+                        <span>ℹ️</span>
+                    </div>
+                    <div class="explanation">
+                        💡 Company earns $68 for every $100 invested - sign of competitive advantage.
+                    </div>
+                    <div style="text-align: right; margin-top: 8px;">
+                        <span style="background: #e5e7eb; padding: 2px 6px; border-radius: 3px; font-size: 11px;">100%</span>
+                    </div>
+                </div>
+                <p style="color: #ef4444; margin-top: 15px; font-size: 14px;">
+                    ⚠️ Missing the actual ROIC percentage value!
+                </p>
+            </div>
+            
+            <div class="card after">
+                <h3>✅ After (With ROIC Value)</h3>
+                <div class="flag-card">
+                    <div class="flag-header">
+                        <div class="flag-title">
+                            <span class="badge">EXCEPTIONAL</span>
+                            <span style="font-weight: 600;">Superior Return on Invested Capital</span>
+                        </div>
+                        <span>ℹ️</span>
+                    </div>
+                    <div class="metrics">
+                        ROIC: 68.3% > 15.0%
+                    </div>
+                    <div class="explanation">
+                        💡 Company earns $68 for every $100 invested - sign of competitive advantage.
+                    </div>
+                    <div style="text-align: right; margin-top: 8px;">
+                        <span style="background: #e5e7eb; padding: 2px 6px; border-radius: 3px; font-size: 11px;">100%</span>
+                    </div>
+                </div>
+                <p style="color: #10b981; margin-top: 15px; font-size: 14px;">
+                    ✅ Now shows ROIC: 68.3% > 15.0% benchmark
+                </p>
+            </div>
+        </div>
+        
+        <div class="fix-details">
+            <h3>🔧 What Was Fixed</h3>
+            <ol>
+                <li><strong>API Mapping:</strong> Added <code>value</code> and <code>benchmark</code> fields to green flags in the API response</li>
+                <li><strong>Display Logic:</strong> Updated the compact flag component to show the technical description which contains the formatted metric</li>
+                <li><strong>Data Flow:</strong> 
+                    <ul>
+                        <li>Green flag analyzer calculates: <code>value: 68.3</code></li>
+                        <li>Sets technical description: <code>"ROIC: 68.3%"</code></li>
+                        <li>Sets benchmark: <code>15</code></li>
+                        <li>Component now displays: <code>ROIC: 68.3% > 15.0%</code></li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+        
+        <div style="margin-top: 30px; padding: 20px; background: #f0fdf4; border-radius: 8px;">
+            <h3>📊 Other Metrics That Now Display</h3>
+            <ul>
+                <li><strong>Free Cash Flow Margin:</strong> Shows actual percentage vs 15% benchmark</li>
+                <li><strong>Return on Equity (ROE):</strong> Shows actual percentage vs 30% benchmark</li>
+                <li><strong>Capital Efficiency:</strong> Shows CapEx/Revenue ratio vs 5% benchmark</li>
+                <li><strong>All other value-based flags</strong> now properly display their metrics</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

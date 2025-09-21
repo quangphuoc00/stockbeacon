@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test News Education Guide</title>
+</head>
+<body>
+    <h1>Testing News Education Guide Placement</h1>
+    <p>Open developer tools and run this in console on the stock details page:</p>
+    <pre>
+// Check if the educational guide is present
+const guide = document.querySelector('[class*="GraduationCap"]');
+console.log('Educational guide found:', !!guide);
+
+// Find all section headers in the news tab
+const newsTab = document.querySelector('[data-state="active"][value="news"]');
+if (newsTab) {
+    const headers = newsTab.parentElement.querySelectorAll('h2, h3, h4, [class*="CardTitle"]');
+    console.log('Section headers in order:');
+    headers.forEach((h, i) => console.log(`${i + 1}.`, h.textContent.trim()));
+}
+
+// Check the order of components
+const components = document.querySelectorAll('[class*="Card"]');
+console.log('Found', components.length, 'card components');
+    </pre>
+    
+    <h2>Expected Order:</h2>
+    <ol>
+        <li>Why News Matters for Investors (Educational Guide)</li>
+        <li>AI News Intelligence (AI Summary)</li>
+        <li>Latest News & Events (News Feed)</li>
+    </ol>
+    
+    <h2>Troubleshooting Steps:</h2>
+    <ol>
+        <li>Hard refresh the page (Cmd+Shift+R on Mac, Ctrl+Shift+R on Windows)</li>
+        <li>Clear browser cache</li>
+        <li>Check if you're on the News & Events tab</li>
+        <li>Wait a moment for the page to fully load</li>
+    </ol>
+</body>
+</html>
+

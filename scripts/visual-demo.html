@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Analysis - Beginner-Friendly Demo</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 0;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #1a1a1a; margin-bottom: 30px; }
+        .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        .demo-section { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .before { border-left: 4px solid #dc3545; }
+        .after { border-left: 4px solid #28a745; }
+        h2 { font-size: 20px; margin-bottom: 20px; }
+        .flag { padding: 15px; margin-bottom: 15px; border-radius: 8px; }
+        .red-flag { background: #fee; border: 1px solid #fcc; }
+        .green-flag { background: #efe; border: 1px solid #cfc; }
+        .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+        .critical { background: #dc3545; color: white; }
+        .strong { background: #28a745; color: white; }
+        .numbers { background: #f8f9fa; padding: 12px; margin: 10px 0; border-radius: 6px; font-family: monospace; }
+        .progress { background: #e9ecef; height: 8px; border-radius: 4px; margin: 10px 0; position: relative; overflow: hidden; }
+        .progress-fill { position: absolute; left: 0; top: 0; height: 100%; background: #dc3545; }
+        .explanation { color: #495057; margin-top: 10px; }
+        .recommendation { background: #fff3cd; padding: 10px; border-radius: 6px; margin-top: 10px; }
+        .ratio-card { background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px; }
+        .ratio-value { font-size: 36px; font-weight: bold; margin: 10px 0; }
+        .ratio-calc { color: #6c757d; margin: 10px 0; }
+        .benchmark { display: flex; height: 30px; margin: 15px 0; border-radius: 15px; overflow: hidden; }
+        .benchmark div { flex: 1; }
+        .poor { background: #ffcdd2; }
+        .fair { background: #fff9c4; }
+        .good { background: #c8e6c9; }
+        .excellent { background: #81c784; }
+        .position-indicator { width: 3px; background: #333; height: 30px; position: absolute; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Financial Analysis: Before vs After Enhancements</h1>
+        
+        <div class="demo-grid">
+            <!-- BEFORE -->
+            <div class="demo-section before">
+                <h2>❌ BEFORE: Limited Information</h2>
+                
+                <div class="flag red-flag">
+                    <span class="badge critical">CRITICAL</span>
+                    <strong> Liquidity Crisis</strong>
+                    <p>Can't pay bills due this year - like having $10k in bills but only $5k in the bank</p>
+                </div>
+                
+                <div class="flag green-flag">
+                    <span class="badge strong">STRONG</span>
+                    <strong> Superior Cash Generation</strong>
+                    <p>Turns sales into real cash efficiently - the ultimate business quality</p>
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <strong>Current Ratio:</strong> 0.87 (Poor)
+                    <p style="color: #6c757d;">Can company pay bills due this year?</p>
+                </div>
+            </div>
+            
+            <!-- AFTER -->
+            <div class="demo-section after">
+                <h2>✅ AFTER: Complete Context with Figures</h2>
+                
+                <div class="flag red-flag">
+                    <span class="badge critical">CRITICAL</span>
+                    <strong> Liquidity Crisis</strong>
+                    <span style="float: right; font-size: 12px;">🎯 100% confidence</span>
+                    
+                    <div class="numbers">
+                        📊 The Numbers: Current Assets ($143.5B) < Current Liabilities ($165.4B)
+                    </div>
+                    
+                    <div style="position: relative;">
+                        <div class="progress">
+                            <div class="progress-fill" style="width: 87%;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #6c757d;">
+                            <span>Actual: $143.5B</span>
+                            <span>Needed: $165.4B</span>
+                        </div>
+                    </div>
+                    
+                    <p class="explanation">💡 The company can't pay bills due this year - like having $10k in bills but only $5k in the bank</p>
+                    
+                    <div class="recommendation">
+                        ⚡ <strong>Action needed:</strong> Check for credit lines or asset sales. Monitor quarterly for improvement.
+                    </div>
+                </div>
+                
+                <div class="flag green-flag">
+                    <span class="badge strong">STRONG</span>
+                    <strong> Superior Cash Generation</strong>
+                    <span style="float: right; font-size: 12px;">🎯 100% confidence</span>
+                    
+                    <div class="numbers">
+                        📊 The Numbers: OCF/NI ratio: 1.24 (Operating Cash Flow: $110.5B, Net Income: $96.9B)
+                    </div>
+                    
+                    <p class="explanation">💡 Turns sales into real cash efficiently - the ultimate business quality</p>
+                    
+                    <div style="background: #d4edda; padding: 10px; border-radius: 6px; margin-top: 10px;">
+                        ✅ <strong>Why this matters:</strong> Strong cash generation funds growth and returns to shareholders
+                    </div>
+                </div>
+                
+                <div class="ratio-card">
+                    <h3>Current Ratio</h3>
+                    <div class="ratio-value">0.87</div>
+                    <div class="ratio-calc">= $143.5B ÷ $165.4B</div>
+                    
+                    <div style="position: relative; margin: 20px 0;">
+                        <div class="benchmark">
+                            <div class="poor"></div>
+                            <div class="fair"></div>
+                            <div class="good"></div>
+                            <div class="excellent"></div>
+                        </div>
+                        <div class="position-indicator" style="left: 20%;"></div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #6c757d;">
+                        <span>Poor < 1.0</span>
+                        <span>Excellent > 2.5</span>
+                    </div>
+                    
+                    <p class="explanation">💡 Company has less than $1 in current assets for every $1 of bills due soon</p>
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 40px; background: #e3f2fd; padding: 20px; border-radius: 8px;">
+            <h3>🎯 Key Improvements for Beginners</h3>
+            <ul>
+                <li><strong>Real Numbers:</strong> See actual dollar amounts, not just "good" or "bad"</li>
+                <li><strong>Visual Comparisons:</strong> Progress bars and scales make it easy to understand</li>
+                <li><strong>Confidence Scores:</strong> Know how reliable each analysis is (100% from SEC data)</li>
+                <li><strong>Clear Actions:</strong> Specific recommendations for what to do</li>
+                <li><strong>Context:</strong> Understand why each metric matters for investment decisions</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

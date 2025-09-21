@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Trends Display</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; background: #f5f5f5; border-radius: 8px; }
+        .success { color: green; }
+        .error { color: red; }
+        pre { background: #eee; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Testing Trend Charts Display</h1>
+    
+    <div id="api-test" class="test-section">
+        <h2>1. API Data Test</h2>
+        <p>Checking if API returns trend data with periods...</p>
+        <div id="api-result"></div>
+    </div>
+    
+    <div id="component-test" class="test-section">
+        <h2>2. Component Presence Test</h2>
+        <p>Checking if trend charts are rendered in the DOM...</p>
+        <div id="component-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Manual Test Instructions</h2>
+        <ol>
+            <li>Open <a href="http://localhost:3000/stocks/AAPL" target="_blank">http://localhost:3000/stocks/AAPL</a></li>
+            <li>Click on "Financials" tab</li>
+            <li>Click on "Trends" tab</li>
+            <li>Check browser console for any errors (F12)</li>
+        </ol>
+    </div>
+
+    <script>
+        // Test 1: API Data
+        async function testAPI() {
+            const resultDiv = document.getElementById('api-result');
+            try {
+                const response = await fetch('/api/stocks/AAPL/analysis');
+                const data = await response.json();
+                
+                if (data.keyTrends && data.keyTrends.length > 0) {
+                    resultDiv.innerHTML = `
+                        <p class="success">✅ API returns ${data.keyTrends.length} trends</p>
+                        <pre>${JSON.stringify(data.keyTrends.map(t => ({
+                            metric: t.metric,
+                            direction: t.direction,
+                            periods: t.periods ? t.periods.length : 0,
+                            hasCagr: t.cagr !== undefined
+                        })), null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = '<p class="error">❌ No trends data found in API response</p>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">❌ API Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Test 2: Component Check
+        async function testComponent() {
+            const resultDiv = document.getElementById('component-result');
+            
+            // We'll check this via an iframe
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = 'http://localhost:3000/stocks/AAPL';
+            document.body.appendChild(iframe);
+            
+            setTimeout(() => {
+                try {
+                    // This might fail due to CORS, but worth trying
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    const hasTrends = iframeDoc.querySelector('[value="trends"]');
+                    
+                    if (hasTrends) {
+                        resultDiv.innerHTML = '<p class="success">✅ Trends tab found in page</p>';
+                    } else {
+                        resultDiv.innerHTML = '<p class="error">❌ Trends tab not found</p>';
+                    }
+                } catch (e) {
+                    resultDiv.innerHTML = '<p>⚠️ Cannot access iframe content (CORS). Please check manually.</p>';
+                }
+                document.body.removeChild(iframe);
+            }, 3000);
+        }
+        
+        // Run tests
+        testAPI();
+        testComponent();
+    </script>
+</body>
+</html>
+

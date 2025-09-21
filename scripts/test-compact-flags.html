@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compact Flags Display Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        h1 { color: #333; margin-bottom: 30px; }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin: 30px 0;
+        }
+        .feature-box {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .feature-title {
+            font-weight: bold;
+            color: #10b981;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .old-design {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .old-flag {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 1px solid #fca5a5;
+            background: #fef2f2;
+            border-radius: 8px;
+        }
+        .new-design {
+            border: 2px solid #10b981;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .flags-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .column {
+            border-right: 1px solid #e0e0e0;
+            padding-right: 20px;
+        }
+        .column:last-child {
+            border-right: none;
+            padding-right: 0;
+            padding-left: 20px;
+        }
+        .column-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+        .compact-flag {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            border: 1px solid;
+        }
+        .green-flag {
+            background: #f0fdf4;
+            border-color: #86efac;
+        }
+        .red-flag {
+            background: #fef2f2;
+            border-color: #fca5a5;
+        }
+        .flag-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+        .flag-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+        .severity-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .critical { background: #dc2626; color: white; }
+        .high { background: #ef4444; color: white; }
+        .strong { background: #16a34a; color: white; }
+        .good { background: #10b981; color: white; }
+        .metrics {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .info-icon {
+            width: 16px;
+            height: 16px;
+            background: #9ca3af;
+            color: white;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            cursor: help;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            margin: 8px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+        li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #10b981;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Compact Flags Display Redesign</h1>
+        
+        <div class="feature-box">
+            <div class="feature-title">✨ New Features</div>
+            <ul>
+                <li>Two-column layout: Green flags on left, Red flags on right</li>
+                <li>Compact cards with all essential information</li>
+                <li>Hover info icons for detailed explanations</li>
+                <li>Key metrics displayed inline</li>
+                <li>Visual separator between columns</li>
+                <li>50% less vertical space usage</li>
+            </ul>
+        </div>
+
+        <div class="comparison">
+            <div>
+                <h2>❌ Old Design</h2>
+                <div class="old-design">
+                    <h3>Red Flags (2)</h3>
+                    <div class="old-flag">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                            <span style="background: #ef4444; color: white; padding: 4px 12px; border-radius: 4px; font-size: 12px;">HIGH</span>
+                            <span style="color: #ef4444;">⚠️</span>
+                        </div>
+                        <h4>1. Declining Gross Margins</h4>
+                        <div style="background: white; padding: 12px; border-radius: 6px; margin: 12px 0;">
+                            <p style="font-weight: 600; margin-bottom: 8px;">📊 The Numbers:</p>
+                            <p>Gross margin dropped from 43.3% to 44.1% over 3 years</p>
+                            <p style="font-size: 12px; color: #666; margin-top: 8px;">Formula: Gross Profit / Revenue × 100</p>
+                        </div>
+                        <p>💡 What this means: Company keeping less profit from each sale - either costs rising or pricing power weakening.</p>
+                        <p style="margin-top: 12px;">🎯 Action: Monitor quarterly margins closely. If trend continues, investigate pricing strategy and cost structure.</p>
+                    </div>
+                    
+                    <h3 style="margin-top: 20px;">Green Flags (2)</h3>
+                    <div class="old-flag" style="background: #f0fdf4; border-color: #86efac;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                            <span style="background: #16a34a; color: white; padding: 4px 12px; border-radius: 4px; font-size: 12px;">STRONG</span>
+                            <span style="color: #16a34a;">✅</span>
+                        </div>
+                        <h4>1. Superior Cash Generation</h4>
+                        <div style="background: white; padding: 12px; border-radius: 6px; margin: 12px 0;">
+                            <p>Free Cash Flow: $99.8B (25.9% of revenue)</p>
+                            <p>Operating Cash Flow: $110.5B</p>
+                        </div>
+                        <p>💡 What this means: Exceptional ability to convert sales into real cash - sign of quality business.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h2>✅ New Design</h2>
+                <div class="new-design">
+                    <h3 style="text-align: center; margin-bottom: 20px;">Financial Flags Analysis</h3>
+                    <div class="flags-grid">
+                        <div class="column">
+                            <div class="column-header">
+                                <span style="color: #16a34a;">✅</span>
+                                <span>Green Flags (2)</span>
+                            </div>
+                            
+                            <div class="compact-flag green-flag">
+                                <div class="flag-header">
+                                    <div class="flag-title">
+                                        <span class="severity-badge strong">STRONG</span>
+                                        <span style="font-weight: 600; font-size: 14px;">Superior Cash Generation</span>
+                                    </div>
+                                    <span class="info-icon">ℹ️</span>
+                                </div>
+                                <div class="metrics">
+                                    Value: $99.8B • FCF Margin: 25.9% • Trend: ↑ improving
+                                </div>
+                                <p style="font-size: 12px; color: #666; margin-top: 4px;">
+                                    💡 Exceptional cash conversion ability...
+                                </p>
+                            </div>
+                            
+                            <div class="compact-flag green-flag">
+                                <div class="flag-header">
+                                    <div class="flag-title">
+                                        <span class="severity-badge good">GOOD</span>
+                                        <span style="font-weight: 600; font-size: 14px;">Strong Balance Sheet</span>
+                                    </div>
+                                    <span class="info-icon">ℹ️</span>
+                                </div>
+                                <div class="metrics">
+                                    Cash: $65.2B • Debt/Equity: 1.95 • Current: 0.99
+                                </div>
+                                <p style="font-size: 12px; color: #666; margin-top: 4px;">
+                                    💡 Solid financial position with ample liquidity...
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="column">
+                            <div class="column-header">
+                                <span style="color: #ef4444;">⚠️</span>
+                                <span>Red Flags (2)</span>
+                            </div>
+                            
+                            <div class="compact-flag red-flag">
+                                <div class="flag-header">
+                                    <div class="flag-title">
+                                        <span class="severity-badge high">HIGH</span>
+                                        <span style="font-weight: 600; font-size: 14px;">Declining Gross Margins</span>
+                                    </div>
+                                    <span class="info-icon">ℹ️</span>
+                                </div>
+                                <div class="metrics">
+                                    Value: 44.1% / 43.3% • Trend: ↓ declining
+                                </div>
+                                <p style="font-size: 12px; color: #666; margin-top: 4px;">
+                                    💡 Company keeping less profit from each sale...
+                                </p>
+                            </div>
+                            
+                            <div class="compact-flag red-flag">
+                                <div class="flag-header">
+                                    <div class="flag-title">
+                                        <span class="severity-badge critical">CRITICAL</span>
+                                        <span style="font-weight: 600; font-size: 14px;">High Debt Load</span>
+                                    </div>
+                                    <span class="info-icon">ℹ️</span>
+                                </div>
+                                <div class="metrics">
+                                    Value: $109.3B / $57.0B (+192%)
+                                </div>
+                                <p style="font-size: 12px; color: #666; margin-top: 4px;">
+                                    💡 Debt exceeds safe levels, increasing risk...
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="feature-box">
+            <div class="feature-title">📊 Space Efficiency Comparison</div>
+            <p>The new design reduces vertical space usage by approximately <strong>50%</strong> while maintaining all critical information:</p>
+            <ul style="margin-top: 10px;">
+                <li>Old design: ~200px per flag</li>
+                <li>New design: ~100px per flag</li>
+                <li>Side-by-side layout allows instant comparison</li>
+                <li>Hover tooltips contain detailed explanations</li>
+            </ul>
+        </div>
+
+        <div class="feature-box" style="background: #f0fdf4; border-color: #10b981;">
+            <div class="feature-title">✨ Benefits</div>
+            <ul>
+                <li>📱 More flags visible without scrolling</li>
+                <li>⚖️ Easy comparison between positives and negatives</li>
+                <li>🎯 Key metrics immediately visible</li>
+                <li>📝 Detailed info available on demand (hover)</li>
+                <li>🎨 Cleaner, more professional appearance</li>
+                <li>⚡ Faster to scan and understand</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

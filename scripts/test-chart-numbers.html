@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart Numbers Display Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        h1 { color: #333; }
+        .feature-box {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .feature-title {
+            font-weight: bold;
+            color: #10b981;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .before-after {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .example-box {
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+        }
+        .example-box h3 {
+            margin-top: 0;
+            color: #666;
+        }
+        .features-list {
+            list-style: none;
+            padding: 0;
+        }
+        .features-list li {
+            margin: 10px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+        .features-list li:before {
+            content: "✅";
+            position: absolute;
+            left: 0;
+        }
+        .label-example {
+            display: inline-block;
+            background: white;
+            border: 0.5px solid rgba(16, 185, 129, 0.3);
+            border-radius: 4px;
+            padding: 4px 8px;
+            margin: 4px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        .change-positive {
+            color: #10b981;
+            font-size: 11px;
+        }
+        .change-negative {
+            color: #ef4444;
+            font-size: 11px;
+        }
+        .code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Trend Chart Numbers Display</h1>
+        
+        <div class="feature-box">
+            <div class="feature-title">🎯 New Feature: Always-Visible Value Labels</div>
+            <p>All data points now display their values directly on the chart, making it easy to see exact numbers without hovering.</p>
+        </div>
+
+        <div class="before-after">
+            <div class="example-box">
+                <h3>❌ Before</h3>
+                <ul style="color: #666;">
+                    <li>Values only visible on hover</li>
+                    <li>Only first and last values shown</li>
+                    <li>No YoY change indicators</li>
+                    <li>Users had to interact to see data</li>
+                </ul>
+            </div>
+            
+            <div class="example-box">
+                <h3>✅ After</h3>
+                <ul style="color: #155724;">
+                    <li>All values always visible</li>
+                    <li>Compact number formatting ($365.8B)</li>
+                    <li>YoY % change shown for each point</li>
+                    <li>Smart positioning to avoid overlaps</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="feature-box">
+            <div class="feature-title">📏 Smart Label Positioning</div>
+            <p>Labels are intelligently positioned to maximize readability:</p>
+            <ul class="features-list">
+                <li>For 5 data points: Labels alternate above/below to prevent overlap</li>
+                <li>Dynamic background boxes that adjust to text width</li>
+                <li>Subtle borders matching the trend color (green/red)</li>
+                <li>High contrast text for excellent readability</li>
+            </ul>
+        </div>
+
+        <div class="feature-box">
+            <div class="feature-title">💰 Example Value Labels</div>
+            <p>Here's how the values appear on the chart:</p>
+            
+            <div style="margin: 20px 0;">
+                <span class="label-example">
+                    $365.8B
+                </span>
+                <span class="label-example">
+                    $394.3B<br>
+                    <span class="change-positive">+7.8%</span>
+                </span>
+                <span class="label-example">
+                    $383.3B<br>
+                    <span class="change-negative">-2.8%</span>
+                </span>
+            </div>
+            
+            <p style="margin-top: 15px; color: #666;">
+                Each label shows the value in a compact format, with year-over-year percentage changes displayed below (except for the first year).
+            </p>
+        </div>
+
+        <div class="feature-box">
+            <div class="feature-title">🎨 Visual Improvements</div>
+            <ul class="features-list">
+                <li>Compact number formatting: <span class="code">$365.8B</span> instead of <span class="code">$365,817,000,000</span></li>
+                <li>Color-coded changes: <span class="change-positive">+7.8%</span> (green) vs <span class="change-negative">-2.8%</span> (red)</li>
+                <li>Semi-transparent white backgrounds (95% opacity) for label readability</li>
+                <li>Responsive sizing that adapts to content length</li>
+                <li>Chart height increased to 220px to accommodate labels</li>
+            </ul>
+        </div>
+
+        <div class="feature-box">
+            <div class="feature-title">📱 Responsive Design</div>
+            <p>The number labels work seamlessly across all device sizes:</p>
+            <ul class="features-list">
+                <li>Labels scale with the chart's responsive SVG viewBox</li>
+                <li>Text remains readable even on smaller screens</li>
+                <li>Positioning logic adapts to available space</li>
+                <li>No overlapping or cut-off text at any screen size</li>
+            </ul>
+        </div>
+
+        <div class="feature-box" style="background: #f0fdf4; border-color: #10b981;">
+            <div class="feature-title">✨ User Benefits</div>
+            <ul class="features-list">
+                <li>Instant visibility of all data points - no interaction required</li>
+                <li>Quick comparison of values across years</li>
+                <li>Clear trend visualization with YoY changes</li>
+                <li>Professional, publication-ready charts</li>
+                <li>Reduced cognitive load - all information at a glance</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

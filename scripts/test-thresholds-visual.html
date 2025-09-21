@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Flag Thresholds - Visual Guide</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; 
+            padding: 20px; 
+            background: #f5f5f5;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 { color: #1a1a1a; margin-bottom: 10px; }
+        .subtitle { color: #666; margin-bottom: 30px; }
+        
+        .threshold-section {
+            margin: 30px 0;
+            padding: 20px;
+            border-radius: 8px;
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .red-section { background: #fef2f2; border-color: #fca5a5; }
+        .green-section { background: #f0fdf4; border-color: #86efac; }
+        
+        .metric-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .metric-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+        
+        .severity-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .critical { background: #dc2626; color: white; }
+        .high { background: #ef4444; color: white; }
+        .medium { background: #f59e0b; color: white; }
+        .exceptional { background: #059669; color: white; }
+        .strong { background: #10b981; color: white; }
+        .good { background: #34d399; color: white; }
+        
+        .threshold-visual {
+            margin: 15px 0;
+            position: relative;
+            height: 40px;
+            background: linear-gradient(to right, #ef4444 0%, #fbbf24 40%, #10b981 100%);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+        
+        .threshold-marker {
+            position: absolute;
+            top: -5px;
+            width: 2px;
+            height: 50px;
+            background: #1a1a1a;
+        }
+        
+        .threshold-label {
+            position: absolute;
+            top: 45px;
+            transform: translateX(-50%);
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .example-box {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-size: 14px;
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .formula {
+            font-family: 'Monaco', 'Consolas', monospace;
+            background: #e5e7eb;
+            padding: 8px 12px;
+            border-radius: 4px;
+            display: inline-block;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Financial Flag Thresholds - Visual Guide</h1>
+        <p class="subtitle">Understanding the specific numbers that trigger financial health warnings and positive indicators</p>
+        
+        <!-- Current Ratio Example -->
+        <div class="threshold-section">
+            <h2>🔍 Example: Current Ratio Analysis</h2>
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-title">Current Ratio (Liquidity Test)</div>
+                </div>
+                <div class="formula">Current Assets / Current Liabilities</div>
+                
+                <div class="threshold-visual">
+                    <div class="threshold-marker" style="left: 25%;"></div>
+                    <div class="threshold-label" style="left: 25%;">1.0x</div>
+                    <div class="threshold-marker" style="left: 40%;"></div>
+                    <div class="threshold-label" style="left: 40%;">1.2x</div>
+                    <div class="threshold-marker" style="left: 70%;"></div>
+                    <div class="threshold-label" style="left: 70%;">2.0x</div>
+                </div>
+                
+                <div class="grid-2">
+                    <div class="example-box" style="border-color: #ef4444;">
+                        <strong>🔴 Critical (< 1.0)</strong><br>
+                        Current Assets: $5B<br>
+                        Current Liabilities: $6B<br>
+                        Ratio: 0.83 → Can't pay all bills!
+                    </div>
+                    <div class="example-box" style="border-color: #10b981;">
+                        <strong>🟢 Excellent (> 2.0)</strong><br>
+                        Current Assets: $12B<br>
+                        Current Liabilities: $5B<br>
+                        Ratio: 2.4 → Strong liquidity cushion
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Red Flags Section -->
+        <div class="threshold-section red-section">
+            <h2>🔴 Red Flag Thresholds</h2>
+            
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-title">Debt Service Coverage</div>
+                    <div class="severity-badge high">HIGH</div>
+                </div>
+                <div class="formula">Operating Cash Flow / (Interest + Principal)</div>
+                <p><strong>Threshold:</strong> < 1.0x = Company needs to borrow to pay debts</p>
+                <div class="example-box">
+                    <strong>Example:</strong> OCF = $500M, Debt payments = $600M<br>
+                    Coverage = 0.83x → 🚨 Debt spiral risk!
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-title">Gross Margin Compression</div>
+                    <div class="severity-badge high">HIGH</div>
+                </div>
+                <div class="formula">(Last Year Margin - This Year Margin) > 5 percentage points</div>
+                <p><strong>Threshold:</strong> > 5pp decline year-over-year</p>
+                <div class="example-box">
+                    <strong>Example:</strong> 2023: 45%, 2024: 38%<br>
+                    Decline = 7pp → 🚨 Pricing power or cost issues!
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-title">Cash Burn + High Leverage</div>
+                    <div class="severity-badge critical">CRITICAL</div>
+                </div>
+                <div class="formula">OCF < 0 AND Debt/Equity > 2.0</div>
+                <p><strong>Dual Threshold:</strong> Negative cash flow + High debt load</p>
+                <div class="example-box">
+                    <strong>Example:</strong> Monthly burn = -$100M, D/E = 3.5x<br>
+                    → 🚨 High bankruptcy risk!
+                </div>
+            </div>
+        </div>
+        
+        <!-- Green Flags Section -->
+        <div class="threshold-section green-section">
+            <h2>🟢 Green Flag Thresholds</h2>
+            
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-title">Free Cash Flow Margin</div>
+                    <div class="severity-badge exceptional">EXCEPTIONAL</div>
+                </div>
+                <div class="formula">Free Cash Flow / Revenue</div>
+                <p><strong>Threshold:</strong> > 15% = Superior cash generation</p>
+                <div class="example-box">
+                    <strong>Example:</strong> FCF = $20B, Revenue = $100B<br>
+                    FCF Margin = 20% → ✅ Cash machine!
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-title">Compound Growth Machine</div>
+                    <div class="severity-badge exceptional">EXCEPTIONAL</div>
+                </div>
+                <div class="formula">Revenue, Earnings, FCF all > 10% CAGR (3yr)</div>
+                <p><strong>Triple Threshold:</strong> All three metrics growing double-digits</p>
+                <div class="example-box">
+                    <strong>Example:</strong> Revenue +15%, Earnings +18%, FCF +12% annually<br>
+                    → ✅ Consistent compounder!
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-title">Return on Equity</div>
+                    <div class="severity-badge exceptional">EXCEPTIONAL</div>
+                </div>
+                <div class="formula">Net Income / Shareholder Equity</div>
+                <p><strong>Threshold:</strong> > 30% = World-class profitability</p>
+                <div class="example-box">
+                    <strong>Example:</strong> Net Income = $15B, Equity = $40B<br>
+                    ROE = 37.5% → ✅ Exceptional returns!
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Reference -->
+        <div class="threshold-section">
+            <h2>⚡ Quick Reference - Key Thresholds</h2>
+            
+            <div class="grid-2">
+                <div>
+                    <h3>🔴 Red Flag Triggers</h3>
+                    <ul>
+                        <li><strong>Current Ratio:</strong> < 1.0 (critical), < 1.2 (warning)</li>
+                        <li><strong>Debt/Equity:</strong> > 2.0 with negative OCF</li>
+                        <li><strong>Interest Coverage:</strong> < 2.0x</li>
+                        <li><strong>Gross Margin:</strong> < 0% or decline > 5pp</li>
+                        <li><strong>Days Sales Outstanding:</strong> > 90 days</li>
+                        <li><strong>Share Dilution:</strong> > 5% annually</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3>🟢 Green Flag Triggers</h3>
+                    <ul>
+                        <li><strong>FCF Margin:</strong> > 15%</li>
+                        <li><strong>Growth (3yr CAGR):</strong> > 10% (all metrics)</li>
+                        <li><strong>ROE:</strong> > 30%</li>
+                        <li><strong>ROIC:</strong> > 15%</li>
+                        <li><strong>CapEx/Revenue:</strong> < 5%</li>
+                        <li><strong>Net Cash Position:</strong> Cash > Debt</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 40px; padding: 20px; background: #f0f9ff; border-radius: 8px; border: 1px solid #3b82f6;">
+            <h3 style="margin-top: 0;">💡 Remember</h3>
+            <p>These thresholds are guidelines. Context matters:</p>
+            <ul>
+                <li>Industry norms vary significantly (e.g., retail vs. software)</li>
+                <li>Company size and maturity affect appropriate levels</li>
+                <li>Trends often matter more than absolute values</li>
+                <li>Multiple flags together tell the complete story</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

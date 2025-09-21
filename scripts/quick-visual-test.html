@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Visual Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .test { margin: 20px 0; padding: 20px; border: 2px solid #ddd; border-radius: 8px; }
+        .pass { background: #d4edda; border-color: #28a745; }
+        .check { margin: 10px 0; }
+        code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Quick Visual Test Checklist</h1>
+    
+    <div class="test">
+        <h2>Test 1: Health Score Meter</h2>
+        <div class="check">☐ Semicircle meter is visible (not blank/broken)</div>
+        <div class="check">☐ Score number shows in center (e.g., "64")</div>
+        <div class="check">☐ Meter fills proportionally to score</div>
+        <div class="check">☐ Color matches: green(≥80), yellow(≥65), orange(≥50), red(<50)</div>
+    </div>
+    
+    <div class="test">
+        <h2>Test 2: All Flags Display</h2>
+        <div class="check">☐ Click "Flags" tab in Financials</div>
+        <div class="check">☐ Count red flags matches the number in header</div>
+        <div class="check">☐ Count green flags matches the number in header</div>
+        <div class="check">☐ NO "+X more flags" message appears</div>
+        <div class="check">☐ Each flag has explanation text</div>
+    </div>
+    
+    <div class="test pass">
+        <h2>✅ Expected Results</h2>
+        <p><strong>AAPL:</strong> Score 64 (C), 3 red flags, 5 green flags</p>
+        <p><strong>MSFT:</strong> Score 82 (B+), 0 red flags, 8 green flags</p>
+        <p><strong>GOOGL:</strong> Score 80 (B+), 1 red flag, 4 green flags</p>
+    </div>
+    
+    <script>
+        document.querySelectorAll('.check').forEach(el => {
+            el.style.cursor = 'pointer';
+            el.onclick = () => {
+                el.textContent = el.textContent.startsWith('☐') 
+                    ? '✅' + el.textContent.substring(1)
+                    : '☐' + el.textContent.substring(1);
+            };
+        });
+    </script>
+</body>
+</html>

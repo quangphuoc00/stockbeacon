@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify 5 Years Trend Display</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
+        .test-section { margin: 20px 0; padding: 20px; background: #f5f5f5; border-radius: 8px; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .info { color: #0066cc; }
+        pre { background: #eee; padding: 10px; overflow-x: auto; border-radius: 4px; }
+        .chart-preview { margin: 20px 0; padding: 20px; background: white; border: 1px solid #ddd; border-radius: 8px; }
+        .features { list-style: none; padding: 0; }
+        .features li { margin: 10px 0; padding-left: 24px; position: relative; }
+        .features li:before { content: "✓"; position: absolute; left: 0; color: green; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>5-Year Trend Charts Verification</h1>
+    
+    <div id="api-test" class="test-section">
+        <h2>API Data Verification</h2>
+        <div id="api-result">Loading...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Expected Features in Updated Charts</h2>
+        <ul class="features">
+            <li>Display all 5 years on the X-axis (e.g., 2019-2023)</li>
+            <li>Interactive hover effects on data points</li>
+            <li>Enhanced tooltips showing year, value, and YoY change</li>
+            <li>Vertical line on hover for better data reading</li>
+            <li>Larger data points on hover</li>
+            <li>Value labels shown on first and last points</li>
+            <li>Total change percentage displayed</li>
+            <li>Latest Year-over-Year change shown</li>
+            <li>Smooth animations on hover</li>
+            <li>Larger chart size (360x140) for better visibility</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>Manual Testing Instructions</h2>
+        <ol>
+            <li>Open <a href="http://localhost:3000/stocks/AAPL" target="_blank">http://localhost:3000/stocks/AAPL</a></li>
+            <li>Navigate to the "Financials" tab</li>
+            <li>Click on the "Trends" sub-tab</li>
+            <li>Verify you see 3 trend charts: Revenue, Net Income, Free Cash Flow</li>
+            <li>For each chart, verify:
+                <ul>
+                    <li>All 5 years are displayed on the X-axis</li>
+                    <li>Hovering over data points shows an enhanced tooltip</li>
+                    <li>Data points grow larger on hover</li>
+                    <li>A vertical dashed line appears on hover</li>
+                    <li>The tooltip shows: Year, Value, and YoY change %</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <div class="test-section chart-preview">
+        <h2>Sample Data Preview</h2>
+        <div id="data-preview"></div>
+    </div>
+
+    <script>
+        async function verifyTrendData() {
+            const resultDiv = document.getElementById('api-result');
+            const previewDiv = document.getElementById('data-preview');
+            
+            try {
+                const response = await fetch('/api/stocks/AAPL/analysis');
+                const data = await response.json();
+                
+                if (!data.keyTrends || data.keyTrends.length === 0) {
+                    resultDiv.innerHTML = '<p class="error">❌ No trend data found in API response</p>';
+                    return;
+                }
+                
+                let html = `<p class="success">✅ Found ${data.keyTrends.length} trends</p>`;
+                html += '<h3>Trend Data Analysis:</h3>';
+                
+                data.keyTrends.forEach((trend, index) => {
+                    const periodCount = trend.periods ? trend.periods.length : 0;
+                    const years = trend.periods ? trend.periods.map(p => new Date(p.date).getFullYear()) : [];
+                    const yearRange = years.length > 0 ? `${years[0]} - ${years[years.length - 1]}` : 'N/A';
+                    
+                    html += `
+                        <div style="margin: 15px 0; padding: 15px; background: white; border-radius: 8px;">
+                            <h4>${trend.metric}</h4>
+                            <p class="info">Direction: ${trend.direction} ${trend.visualIndicator}</p>
+                            <p class="info">Data Points: ${periodCount} years (${yearRange})</p>
+                            <p class="info">CAGR: ${trend.cagr ? trend.cagr.toFixed(1) + '%' : 'N/A'}</p>
+                            <p style="color: #666; font-size: 14px;">${trend.insight}</p>
+                        </div>
+                    `;
+                    
+                    // Show first trend's data in preview
+                    if (index === 0 && trend.periods) {
+                        previewDiv.innerHTML = `
+                            <h3>${trend.metric} - Raw Data</h3>
+                            <pre>${JSON.stringify(trend.periods.map(p => ({
+                                year: new Date(p.date).getFullYear(),
+                                value: formatValue(p.value, trend.metric),
+                                yoyChange: p.percentageChange ? p.percentageChange.toFixed(1) + '%' : 'N/A'
+                            })), null, 2)}</pre>
+                        `;
+                    }
+                });
+                
+                resultDiv.innerHTML += html;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">❌ Error: ${error.message}</p>`;
+            }
+        }
+        
+        function formatValue(value, metric) {
+            const absValue = Math.abs(value);
+            if (absValue >= 1e9) {
+                return `$${(value / 1e9).toFixed(2)}B`;
+            } else if (absValue >= 1e6) {
+                return `$${(value / 1e6).toFixed(1)}M`;
+            }
+            return `$${value.toFixed(0)}`;
+        }
+        
+        // Run verification
+        verifyTrendData();
+    </script>
+</body>
+</html>
