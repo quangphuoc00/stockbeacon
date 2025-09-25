@@ -98,6 +98,9 @@ export function StockDetailsClient({
   const [financialStatements, setFinancialStatements] = useState<FinancialStatements | null>(null)
   const [loadingFinancialStatements, setLoadingFinancialStatements] = useState(false)
   const [showFinancialStatements, setShowFinancialStatements] = useState(false)
+  const [aiEvaluation, setAIEvaluation] = useState<any>(null)
+  const [loadingAIEvaluation, setLoadingAIEvaluation] = useState(false)
+  const [showFullAIAnalysis, setShowFullAIAnalysis] = useState(false)
   
   // Ref to prevent concurrent valuation loads
   const isLoadingValuationRef = useRef(false)
@@ -464,6 +467,51 @@ export function StockDetailsClient({
     }
   }
 
+  const loadAIEvaluation = async () => {
+    if (loadingAIEvaluation) {
+      console.log('[StockDetailsClient] Skipping AI evaluation - already loading')
+      return
+    }
+    
+    const startTime = Date.now()
+    console.log(`[StockDetailsClient] Starting AI evaluation for ${symbol}`)
+    setLoadingAIEvaluation(true)
+    
+    try {
+      const response = await fetch(`/api/stocks/${symbol}/ai-evaluation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          stockData,
+          financialStatements,
+          companyProfile,
+          moatAnalysis,
+          valuation
+        })
+      })
+      
+      const fetchTime = Date.now() - startTime
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log(`[StockDetailsClient] AI evaluation loaded for ${symbol} in ${fetchTime}ms`, {
+          hasEvaluation: !!data.evaluation,
+          recommendation: data.evaluation?.recommendation
+        })
+        setAIEvaluation(data.evaluation)
+      } else {
+        console.error(`[StockDetailsClient] Failed to load AI evaluation for ${symbol} - status: ${response.status} after ${fetchTime}ms`)
+      }
+    } catch (error) {
+      const fetchTime = Date.now() - startTime
+      console.error(`[StockDetailsClient] Error loading AI evaluation for ${symbol} after ${fetchTime}ms:`, error)
+    } finally {
+      setLoadingAIEvaluation(false)
+    }
+  }
+
   const handleWatchlistToggle = async () => {
     const startTime = Date.now()
     const action = isWatching ? 'remove from' : 'add to'
@@ -744,6 +792,94 @@ export function StockDetailsClient({
           </div>
         </div>
 
+        {/* Full AI Analysis Dialog */}
+        <Dialog open={showFullAIAnalysis} onOpenChange={setShowFullAIAnalysis}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>AI Stock Evaluation - {symbol}</DialogTitle>
+              <DialogDescription>
+                Comprehensive analysis using our 7-step investment framework
+              </DialogDescription>
+            </DialogHeader>
+            {aiEvaluation && (
+              <div className="space-y-6 py-4">
+                {/* Recommendation */}
+                <div className="p-4 bg-muted rounded-lg">
+                  <h3 className="font-semibold text-lg mb-2">{aiEvaluation.recommendation}</h3>
+                  <p className="text-muted-foreground">{aiEvaluation.summary}</p>
+                </div>
+                
+                {/* 7-Step Analysis */}
+                {aiEvaluation.steps && (
+                  <div className="space-y-4">
+                    {Object.entries(aiEvaluation.steps).map(([stepName, stepData]: [string, any]) => (
+                      <div key={stepName} className="border rounded-lg p-4">
+                        <h4 className="font-medium mb-2">{stepData.title}</h4>
+                        <div className="space-y-2">
+                          {stepData.analysis && (
+                            <p className="text-sm text-muted-foreground">{stepData.analysis}</p>
+                          )}
+                          {stepData.metrics && (
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                              {Object.entries(stepData.metrics).map(([metric, value]: [string, any]) => (
+                                <div key={metric} className="text-sm">
+                                  <span className="text-muted-foreground">{metric}:</span>
+                                  <span className="ml-2 font-medium">{value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {stepData.score && (
+                            <div className="mt-2">
+                              <Progress value={stepData.score} className="h-2" />
+                              <p className="text-xs text-muted-foreground mt-1">{stepData.score}%</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Key Risks and Opportunities */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {aiEvaluation.risks && (
+                    <div>
+                      <h4 className="font-medium mb-2 text-red-600">Key Risks</h4>
+                      <ul className="space-y-1">
+                        {aiEvaluation.risks.map((risk: string, idx: number) => (
+                          <li key={idx} className="text-sm flex items-start gap-2">
+                            <AlertCircle className="h-3 w-3 text-red-500 mt-0.5" />
+                            <span className="text-muted-foreground">{risk}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {aiEvaluation.opportunities && (
+                    <div>
+                      <h4 className="font-medium mb-2 text-green-600">Opportunities</h4>
+                      <ul className="space-y-1">
+                        {aiEvaluation.opportunities.map((opp: string, idx: number) => (
+                          <li key={idx} className="text-sm flex items-start gap-2">
+                            <TrendingUp className="h-3 w-3 text-green-500 mt-0.5" />
+                            <span className="text-muted-foreground">{opp}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Timestamp */}
+                <div className="text-xs text-muted-foreground text-center pt-4 border-t">
+                  Analysis generated on {new Date().toLocaleString()}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
         {/* Share Message Notification */}
         {shareMessage && (
           <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom">
@@ -1004,124 +1140,6 @@ export function StockDetailsClient({
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* StockBeacon Score Breakdown */}
-            {score && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>StockBeacon Score Analysis</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Overall Score</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-32 bg-muted rounded-full h-2">
-                          <div 
-                            className={`h-2 rounded-full ${getScoreColor(score.score)}`}
-                            style={{ width: `${score.score}%` }}
-                          />
-                        </div>
-                        <span className="font-bold">{score.score}/100</span>
-                      </div>
-                    </div>
-                    
-                    <div className="pt-4 border-t">
-                      <Badge 
-                        className="mb-3"
-                        variant={
-                          score.recommendation === 'strong_buy' ? 'default' :
-                          score.recommendation === 'buy' ? 'secondary' :
-                          score.recommendation === 'hold' ? 'outline' :
-                          'destructive'
-                        }
-                      >
-                        {score.recommendation.replace('_', ' ').toUpperCase()}
-                      </Badge>
-                      <p className="text-sm text-muted-foreground">{score.explanation}</p>
-                    </div>
-
-                    {score.strengths && score.strengths.length > 0 && (
-                      <div className="pt-2">
-                        <p className="text-sm font-semibold text-green-600 mb-1">Strengths:</p>
-                        <ul className="text-sm space-y-1">
-                          {score.strengths.map((strength: string, i: number) => (
-                            <li key={i} className="flex items-start gap-1">
-                              <span className="text-green-600">•</span>
-                              <span>{strength}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {score.weaknesses && score.weaknesses.length > 0 && (
-                      <div className="pt-2">
-                        <p className="text-sm font-semibold text-red-600 mb-1">Weaknesses:</p>
-                        <ul className="text-sm space-y-1">
-                          {score.weaknesses.map((weakness: string, i: number) => (
-                            <li key={i} className="flex items-start gap-1">
-                              <span className="text-red-600">•</span>
-                              <span>{weakness}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Key Statistics */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Key Statistics</CardTitle>
-                <CardDescription>Important metrics at a glance</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">P/E Ratio</span>
-                    <span className="font-medium">{quote.peRatio ? quote.peRatio.toFixed(2) : 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">EPS</span>
-                    <span className="font-medium">{quote.eps ? formatCurrency(quote.eps) : 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Market Cap</span>
-                    <span className="font-medium">{quote.marketCap ? formatLargeNumber(quote.marketCap) : 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Volume</span>
-                    <span className="font-medium">{quote.volume ? formatLargeNumber(quote.volume) : 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">52W High</span>
-                    <span className="font-medium">{quote.week52High ? formatCurrency(quote.week52High) : 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">52W Low</span>
-                    <span className="font-medium">{quote.week52Low ? formatCurrency(quote.week52Low) : 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Previous Close</span>
-                    <span className="font-medium">{quote.previousClose ? formatCurrency(quote.previousClose) : 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Day Range</span>
-                    <span className="font-medium">
-                      {quote.dayLow && quote.dayHigh ? 
-                        `${formatCurrency(quote.dayLow)} - ${formatCurrency(quote.dayHigh)}` : 
-                        'N/A'}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
           {/* Company Profile */}
           {loadingProfile ? (
             <Card>
@@ -1228,6 +1246,168 @@ export function StockDetailsClient({
               </CardContent>
             </Card>
           ) : null}
+          
+          {/* AI Stock Evaluation */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5" />
+                    AI Stock Evaluation
+                  </CardTitle>
+                  <CardDescription>
+                    Comprehensive analysis using our 7-step investment framework
+                  </CardDescription>
+                </div>
+                <Button
+                  variant={aiEvaluation ? "outline" : "default"}
+                  onClick={() => loadAIEvaluation()}
+                  disabled={loadingAIEvaluation}
+                >
+                  {loadingAIEvaluation ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-current mr-2" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4 mr-2" />
+                      {aiEvaluation ? 'Refresh Analysis' : 'Analyze Stock'}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingAIEvaluation ? (
+                <div className="space-y-4">
+                  <div className="h-4 w-3/4 bg-muted animate-pulse rounded" />
+                  <div className="h-4 w-full bg-muted animate-pulse rounded" />
+                  <div className="h-4 w-5/6 bg-muted animate-pulse rounded" />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                    <div className="h-24 bg-muted animate-pulse rounded" />
+                    <div className="h-24 bg-muted animate-pulse rounded" />
+                    <div className="h-24 bg-muted animate-pulse rounded" />
+                  </div>
+                </div>
+              ) : aiEvaluation ? (
+                <div className="space-y-6">
+                  {/* Recommendation Badge */}
+                  <div className="flex items-center gap-3">
+                    <Badge className={`text-lg px-3 py-1 ${
+                      aiEvaluation.recommendation === 'Buy' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                      aiEvaluation.recommendation === 'Hold' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                      'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                    }`}>
+                      {aiEvaluation.recommendation}
+                    </Badge>
+                    <p className="text-muted-foreground">{aiEvaluation.summary}</p>
+                  </div>
+
+                  {/* Key Points */}
+                  <div>
+                    <h4 className="font-medium mb-3">Key Investment Points</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {aiEvaluation.keyPoints?.map((point: string, idx: number) => (
+                        <div key={idx} className="p-4 bg-muted/50 rounded-lg">
+                          <div className="flex items-start gap-2">
+                            <div className="mt-1">
+                              <div className="h-2 w-2 bg-primary rounded-full" />
+                            </div>
+                            <p className="text-sm">{point}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 7-Step Analysis Summary */}
+                  {aiEvaluation.steps && (
+                    <div>
+                      <h4 className="font-medium mb-3">7-Step Analysis Overview</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {Object.entries(aiEvaluation.steps).slice(0, 4).map(([stepName, stepData]: [string, any]) => (
+                          <div key={stepName} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{stepData.title}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{stepData.analysis?.substring(0, 80)}...</p>
+                            </div>
+                            {stepData.score && (
+                              <div className="ml-4 text-right">
+                                <p className={`text-lg font-bold ${
+                                  stepData.score >= 80 ? 'text-green-600' :
+                                  stepData.score >= 60 ? 'text-yellow-600' :
+                                  'text-red-600'
+                                }`}>
+                                  {stepData.score}%
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Risks and Opportunities */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {aiEvaluation.risks && aiEvaluation.risks.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-3 flex items-center gap-2 text-red-600">
+                          <AlertCircle className="h-4 w-4" />
+                          Key Risks
+                        </h4>
+                        <ul className="space-y-2">
+                          {aiEvaluation.risks.slice(0, 3).map((risk: string, idx: number) => (
+                            <li key={idx} className="flex items-start gap-2">
+                              <span className="text-red-500 mt-1">•</span>
+                              <span className="text-sm">{risk}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {aiEvaluation.opportunities && aiEvaluation.opportunities.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-3 flex items-center gap-2 text-green-600">
+                          <TrendingUp className="h-4 w-4" />
+                          Opportunities
+                        </h4>
+                        <ul className="space-y-2">
+                          {aiEvaluation.opportunities.slice(0, 3).map((opp: string, idx: number) => (
+                            <li key={idx} className="flex items-start gap-2">
+                              <span className="text-green-500 mt-1">•</span>
+                              <span className="text-sm">{opp}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* View Full Analysis Button */}
+                  <div className="flex justify-center pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowFullAIAnalysis(true)}
+                    >
+                      View Detailed Analysis
+                      <ChevronRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Zap className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground mb-2">No analysis available yet</p>
+                  <p className="text-sm text-muted-foreground">
+                    Click "Analyze Stock" to get AI-powered insights using our comprehensive 7-step framework
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="analysis" className="space-y-4">

@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils'
 import { Logo } from '@/components/ui/logo'
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Hidden Gems', href: '/hidden-gems', icon: Search },
   { name: 'Smart Watchlist', href: '/watchlist', icon: Eye },
   { name: 'Portfolio', href: '/portfolio', icon: Briefcase },

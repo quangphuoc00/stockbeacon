@@ -39,7 +39,7 @@ export default function LoginPage() {
           method: 'POST',
           credentials: 'include'
         })
-        router.push('/dashboard')
+        router.push('/home')
         router.refresh()
       }
     } catch (err) {

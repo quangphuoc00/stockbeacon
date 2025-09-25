@@ -241,11 +241,35 @@ export class AIMoatAnalysisService {
     else if (overallScore >= 40) strength = 'Moderate';
     else strength = 'Weak';
 
+    // Update the summary to ensure it matches the calculated strength
+    let summary = aiAnalysis.summary;
+    
+    // Replace any incorrect moat classification in the summary with the calculated one
+    const moatPatterns = [
+      /\b(Strong|Moderate|Weak)\s+moat\b/gi,
+      /\bhas\s+a\s+(Strong|Moderate|Weak)\s+moat\b/gi,
+      /\bpossesses\s+a\s+(Strong|Moderate|Weak)\s+moat\b/gi,
+      /\bdemonstrates\s+a\s+(Strong|Moderate|Weak)\s+moat\b/gi,
+      /\bexhibits\s+a\s+(Strong|Moderate|Weak)\s+moat\b/gi
+    ];
+    
+    for (const pattern of moatPatterns) {
+      summary = summary.replace(pattern, (match: string, p1: string) => {
+        // Preserve the original match structure but with the correct strength
+        return match.replace(p1, strength);
+      });
+    }
+    
+    // If no moat classification was found in the summary, prepend it
+    if (!moatPatterns.some(pattern => pattern.test(aiAnalysis.summary))) {
+      summary = `${symbol} has a ${strength} moat. ${summary}`;
+    }
+
     return {
       symbol,
       overallScore,
       dimensions,
-      summary: aiAnalysis.summary,
+      summary,
       strength,
       lastUpdated: new Date(),
     };

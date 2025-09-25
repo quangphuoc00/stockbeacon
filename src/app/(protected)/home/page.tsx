@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Search, X, TrendingUp, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -16,9 +16,8 @@ interface StockSuggestion {
   type?: string
 }
 
-export function StockSearch() {
+export default function HomePage() {
   const router = useRouter()
-  const pathname = usePathname()
   const { preloadStock } = useStockPreload()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -27,7 +26,7 @@ export function StockSearch() {
   const [recentSearches, setRecentSearches] = useState<string[]>([])
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const [navigating, setNavigating] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const dialogInputRef = useRef<HTMLInputElement>(null)
 
   // Load recent searches from localStorage and prefetch
   useEffect(() => {
@@ -49,7 +48,14 @@ export function StockSearch() {
     })
   }, [router])
 
-  // Keyboard shortcut
+  // Focus input when dialog opens
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => dialogInputRef.current?.focus(), 100)
+    }
+  }, [open])
+
+  // Keyboard shortcut (cmd + k)
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
@@ -60,18 +66,6 @@ export function StockSearch() {
     document.addEventListener('keydown', down)
     return () => document.removeEventListener('keydown', down)
   }, [])
-
-  // Focus input when dialog opens
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 100)
-    }
-  }, [open])
-  
-  // Reset navigating state on route change
-  useEffect(() => {
-    setNavigating(false)
-  }, [pathname])
 
   // Search for stocks
   const searchStocks = useCallback(async (query: string) => {
@@ -85,7 +79,6 @@ export function StockSearch() {
       const response = await fetch(`/api/stocks/search?q=${encodeURIComponent(query)}`)
       
       if (!response.ok) {
-        // Handle error response
         console.error(`Search API error: ${response.status} ${response.statusText}`)
         setSuggestions([])
         return
@@ -159,11 +152,6 @@ export function StockSearch() {
 
   const popularStocks = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA']
 
-  // Don't show search button on home page
-  if (pathname === '/home') {
-    return null
-  }
-
   return (
     <>
       {/* Loading Overlay */}
@@ -175,29 +163,48 @@ export function StockSearch() {
           </div>
         </div>
       )}
-      
-      {/* Desktop Search Button */}
-      <Button
-        variant="outline"
-        className="hidden md:flex items-center gap-2 px-3 text-muted-foreground hover:text-foreground"
-        onClick={() => setOpen(true)}
-      >
-        <Search className="h-4 w-4" />
-        <span className="text-sm">Search stocks...</span>
-        <kbd className="pointer-events-none ml-2 inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
-          <span className="text-xs">⌘</span>K
-        </kbd>
-      </Button>
 
-      {/* Mobile Search Button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="md:hidden"
-        onClick={() => setOpen(true)}
-      >
-        <Search className="h-5 w-5" />
-      </Button>
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-2xl">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold mb-2">Let's analyze your stock</h1>
+            <p className="text-muted-foreground">Enter a stock symbol or company name</p>
+          </div>
+          
+          {/* Clickable search input that opens dialog */}
+          <div 
+            className="relative cursor-pointer"
+            onClick={() => setOpen(true)}
+          >
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
+            <Input
+              type="text"
+              placeholder="Search by symbol or name..."
+              readOnly
+              className="w-full pl-12 pr-32 py-6 text-lg rounded-xl shadow-lg cursor-pointer"
+            />
+            <kbd className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none inline-flex h-7 select-none items-center gap-1 rounded border bg-muted px-2 font-mono text-xs font-medium text-muted-foreground">
+              <span className="text-sm">⌘</span>K
+            </kbd>
+          </div>
+
+          {/* Popular stocks */}
+          <div className="mt-8 text-center">
+            <p className="text-sm text-muted-foreground mb-4">Popular stocks</p>
+            <div className="flex justify-center gap-2 flex-wrap">
+              {popularStocks.map(symbol => (
+                <button
+                  key={symbol}
+                  onClick={() => handleSelect(symbol)}
+                  className="px-4 py-2 border rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  {symbol}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Search Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -206,7 +213,7 @@ export function StockSearch() {
           <div className="flex items-center border-b px-3">
             <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
             <Input
-              ref={inputRef}
+              ref={dialogInputRef}
               placeholder="Search stocks by symbol or name..."
               value={search}
               onChange={(e) => {

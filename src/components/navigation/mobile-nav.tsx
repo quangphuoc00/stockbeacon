@@ -7,7 +7,6 @@ import { Home, Search, Eye, Briefcase, User as UserIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Hidden Gems', href: '/hidden-gems', icon: Search },
   { name: 'Smart Watchlist', href: '/watchlist', icon: Eye },
   { name: 'Portfolio', href: '/portfolio', icon: Briefcase },
